@@ -327,6 +327,8 @@ typedef struct PGRAPHVkState {
     bool debug_utils_extension_enabled;
     bool custom_border_color_extension_enabled;
     bool memory_budget_extension_enabled;
+    bool maintenance4_available;
+    uint32_t vulkan_api_version;
 
     VkPhysicalDevice physical_device;
     VkPhysicalDeviceFeatures enabled_physical_device_features;

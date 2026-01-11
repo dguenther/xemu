@@ -219,6 +219,32 @@ static bool create_instance(PGRAPHState *pg, Error **errp)
         return false;
     }
 
+    // Determine supported Vulkan API version
+    uint32_t instance_api_version = VK_API_VERSION_1_2;
+    if (vkEnumerateInstanceVersion != NULL) {
+        VkResult version_result = vkEnumerateInstanceVersion(&instance_api_version);
+        if (version_result != VK_SUCCESS) {
+            instance_api_version = VK_API_VERSION_1_2;
+        }
+    }
+
+    // Cap at 1.3 (we don't need anything newer)
+    if (instance_api_version > VK_API_VERSION_1_3) {
+        instance_api_version = VK_API_VERSION_1_3;
+    }
+
+    // Enforce minimum 1.2
+    if (instance_api_version < VK_API_VERSION_1_2) {
+        error_setg(errp, "Vulkan 1.2 or later is required (found %d.%d)",
+                   VK_VERSION_MAJOR(instance_api_version),
+                   VK_VERSION_MINOR(instance_api_version));
+        volkFinalize();
+        destroy_window(r);
+        return false;
+    }
+
+    r->vulkan_api_version = instance_api_version;
+
     VkApplicationInfo app_info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pApplicationName = "xemu",
@@ -226,7 +252,7 @@ static bool create_instance(PGRAPHState *pg, Error **errp)
             xemu_version_major, xemu_version_minor, xemu_version_patch),
         .pEngineName = "No Engine",
         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-        .apiVersion = VK_API_VERSION_1_3,
+        .apiVersion = instance_api_version,
     };
 
     g_autoptr(VkExtensionPropertiesArray) available_extensions =
@@ -404,6 +430,15 @@ static void add_optional_device_extension_names(
     r->memory_budget_extension_enabled = add_extension_if_available(
         available_extensions, enabled_extension_names,
         VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+
+    // maintenance4 is core in Vulkan 1.3, extension in 1.2
+    if (r->vulkan_api_version >= VK_API_VERSION_1_3) {
+        r->maintenance4_available = true;
+    } else {
+        r->maintenance4_available = add_extension_if_available(
+            available_extensions, enabled_extension_names,
+            VK_KHR_MAINTENANCE_4_EXTENSION_NAME);
+    }
 }
 
 static bool check_device_support_required_extensions(VkPhysicalDevice device)
@@ -681,19 +716,30 @@ static bool init_allocator(PGRAPHState *pg, Error **errp)
         /// Fetch from "vkGetPhysicalDeviceMemoryProperties2" on Vulkan >= 1.1, but you can also fetch it from "vkGetPhysicalDeviceMemoryProperties2KHR" if you enabled extension VK_KHR_get_physical_device_properties2.
         .vkGetPhysicalDeviceMemoryProperties2KHR = vkGetPhysicalDeviceMemoryProperties2KHR,
     #endif
-    #if VMA_KHR_MAINTENANCE4 || VMA_VULKAN_VERSION >= 1003000
-        /// Fetch from "vkGetDeviceBufferMemoryRequirements" on Vulkan >= 1.3, but you can also fetch it from "vkGetDeviceBufferMemoryRequirementsKHR" if you enabled extension VK_KHR_maintenance4.
-        .vkGetDeviceBufferMemoryRequirements = vkGetDeviceBufferMemoryRequirements,
-        /// Fetch from "vkGetDeviceImageMemoryRequirements" on Vulkan >= 1.3, but you can also fetch it from "vkGetDeviceImageMemoryRequirementsKHR" if you enabled extension VK_KHR_maintenance4.
-        .vkGetDeviceImageMemoryRequirements = vkGetDeviceImageMemoryRequirements,
-    #endif
     };
+
+    // Set maintenance4 functions based on runtime availability
+    if (r->maintenance4_available) {
+        if (r->vulkan_api_version >= VK_API_VERSION_1_3) {
+            // Use core Vulkan 1.3 functions
+            vulkanFunctions.vkGetDeviceBufferMemoryRequirements =
+                vkGetDeviceBufferMemoryRequirements;
+            vulkanFunctions.vkGetDeviceImageMemoryRequirements =
+                vkGetDeviceImageMemoryRequirements;
+        } else {
+            // Use VK_KHR_maintenance4 extension functions
+            vulkanFunctions.vkGetDeviceBufferMemoryRequirements =
+                (PFN_vkGetDeviceBufferMemoryRequirements)vkGetDeviceBufferMemoryRequirementsKHR;
+            vulkanFunctions.vkGetDeviceImageMemoryRequirements =
+                (PFN_vkGetDeviceImageMemoryRequirements)vkGetDeviceImageMemoryRequirementsKHR;
+        }
+    }
 
     VmaAllocatorCreateInfo create_info = {
         .flags = (r->memory_budget_extension_enabled ?
                       VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT :
                       0),
-        .vulkanApiVersion = VK_API_VERSION_1_3,
+        .vulkanApiVersion = r->vulkan_api_version,
         .instance = r->instance,
         .physicalDevice = r->physical_device,
         .device = r->device,
