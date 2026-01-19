@@ -24,9 +24,19 @@
 extern "C" {
 #endif
 
+#ifdef CONFIG_SWITCH
+#include "qemu-types-stub.h"
+#else
 #include "qemu/osdep.h"
 #include "block/snapshot.h"
+#endif
+
+// OpenGL loader abstraction: use glad on Switch, epoxy elsewhere
+#ifdef CONFIG_SWITCH
+#include <glad/glad.h>
+#else
 #include <epoxy/gl.h>
+#endif
 
 #define XEMU_SNAPSHOT_DATA_MAGIC 0x78656d75 // 'xemu'
 #define XEMU_SNAPSHOT_DATA_VERSION 1

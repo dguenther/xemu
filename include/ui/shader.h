@@ -1,7 +1,11 @@
 #ifndef QEMU_SHADER_H
 #define QEMU_SHADER_H
 
+#ifdef CONFIG_SWITCH
+#include <glad/glad.h>
+#else
 #include <epoxy/gl.h>
+#endif
 
 typedef struct QemuGLShader QemuGLShader;
 

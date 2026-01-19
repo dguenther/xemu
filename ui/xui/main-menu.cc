@@ -28,19 +28,27 @@
 #include "misc.hh"
 #include "gl-helpers.hh"
 #include "reporting.hh"
+#ifndef CONFIG_SWITCH
 #include "qapi/error.h"
+#endif
 #include "actions.hh"
 
 #include "../xemu-input.h"
 #include "../xemu-notifications.h"
 #include "../xemu-settings.h"
+#ifndef CONFIG_SWITCH
 #include "../xemu-monitor.h"
+#endif
 #include "../xemu-version.h"
+#ifndef CONFIG_SWITCH
 #include "../xemu-net.h"
+#endif
 #include "../xemu-os-utils.h"
 #include "../xemu-xbe.h"
 
+#ifndef CONFIG_SWITCH
 #include "../thirdparty/fatx/fatx.h"
+#endif
 
 #define DEFAULT_XMU_SIZE 8388608
 
@@ -99,6 +107,16 @@ bool MainMenuInputView::IsInputRebinding()
 
 void MainMenuInputView::Draw()
 {
+#ifdef CONFIG_SWITCH
+    // Switch port: input rebinding/UI depends on desktop controller plumbing and
+    // currently crashes due to incomplete backend support. Keep the tab visible
+    // but disable its contents for now.
+    ImGui::TextWrapped("Input configuration is not available on Switch yet.");
+    ImGui::Spacing();
+    ImGui::TextWrapped("Planned: controller binding UI + save/load mappings.");
+    return;
+#endif
+
     SectionTitle("Controllers");
     ImGui::PushFont(g_font_mgr.m_menu_font_small);
 
@@ -836,7 +854,12 @@ void MainMenuAudioView::Draw()
     char buf[32];
     snprintf(buf, sizeof(buf), "Limit output volume (%d%%)",
              (int)(g_config.audio.volume_limit * 100));
+#ifndef CONFIG_SWITCH
     Slider("Output volume limit", &g_config.audio.volume_limit, buf);
+#else
+    ImGui::TextWrapped("Output volume limit is disabled on Switch for now.");
+    ImGui::TextWrapped("Use the system volume controls instead.");
+#endif
 
     SectionTitle("Quality");
     Toggle("Real-time DSP processing", &g_config.audio.use_dsp,
@@ -1556,6 +1579,16 @@ void MainMenuSystemView::Draw()
                    rom_file_filters)) {
         m_dirty = true;
     }
+
+#ifdef CONFIG_SWITCH
+    extern "C" void switch_request_boot_bios(void);
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+    if (ImGui::Button("Boot Xbox (BIOS)")) {
+        switch_request_boot_bios();
+    }
+#endif
 }
 
 MainMenuAboutView::MainMenuAboutView() : m_config_info_text{ NULL }
@@ -1785,13 +1818,15 @@ void MainMenuScene::HandleInput()
     bool nofocus = !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow);
     bool focus = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows |
                                         ImGuiFocusedFlags_NoPopupHierarchy);
+    bool any_popup_open = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId |
+                                                     ImGuiPopupFlags_AnyPopupLevel);
 
     // XXX: Ensure we have focus for two frames. If a user cancels a popup
     // window, we do not want to cancel main
     //      window as well.
-    if (nofocus || (focus && m_had_focus_last_frame &&
-                    (ImGui::IsKeyDown(ImGuiKey_GamepadFaceRight) ||
-                     ImGui::IsKeyDown(ImGuiKey_Escape)))) {
+    if (nofocus || (focus && m_had_focus_last_frame && !any_popup_open &&
+                    (ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight) ||
+                     ImGui::IsKeyPressed(ImGuiKey_Escape)))) {
         Hide();
         return;
     }

@@ -17,9 +17,12 @@ void InputManager::Update()
 
     // Combine all controller states to allow any controller to navigate
     m_buttons = 0;
+#ifndef CONFIG_SWITCH
     int16_t axis[CONTROLLER_AXIS__COUNT] = {0};
+#endif
 
     // If we are rebinding a controller, prevent navigation
+#ifndef CONFIG_SWITCH
     if (!g_main_menu.IsInputRebinding()) {
         ControllerState *iter;
         QTAILQ_FOREACH (iter, &available_controllers, entry) {
@@ -34,6 +37,7 @@ void InputManager::Update()
             }
         }
     }
+#endif
 
     // If the mouse is moved, wake the ui
     ImVec2 current_mouse_pos = ImGui::GetMousePos();
@@ -58,6 +62,7 @@ void InputManager::Update()
     // to navigate the HUD
     xemu_input_set_test_mode(controller_focus_capture); // FIXME: Rename 'test mode'
 
+#ifndef CONFIG_SWITCH
     // Update gamepad inputs
     #define IM_SATURATE(V)                      (V < 0.0f ? 0.0f : V > 1.0f ? 1.0f : V)
     #define MAP_BUTTON(KEY_NO, BUTTON_NO)       { io.AddKeyEvent(KEY_NO, !!(m_buttons & BUTTON_NO)); }
@@ -90,4 +95,5 @@ void InputManager::Update()
     #undef MAP_BUTTON
     #undef MAP_ANALOG
     #undef IM_SATURATE
+#endif
 }

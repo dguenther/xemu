@@ -40,6 +40,20 @@ void FontManager::Rebuild()
 
     io.Fonts->Clear();
 
+#ifdef CONFIG_SWITCH
+    // On Switch, use ImGui's default font since custom fonts are not embedded
+    {
+        ImFontConfig config = ImFontConfig();
+        config.OversampleH = config.OversampleV = 1;
+        config.PixelSnapH = true;
+        config.SizePixels = 16.0f * g_viewport_mgr.m_scale * m_font_scale;
+        m_default_font = io.Fonts->AddFontDefault(&config);
+        m_menu_font_small = m_default_font;
+        m_menu_font_medium = m_default_font;
+        m_menu_font = m_default_font;
+        m_fixed_width_font = m_default_font;
+    }
+#else
     {
         ImFontConfig config;
         config.FontDataOwnedByAtlas = false;
@@ -105,6 +119,7 @@ void FontManager::Rebuild()
         config.SizePixels = 13.0f*g_viewport_mgr.m_scale;
         m_fixed_width_font = io.Fonts->AddFontDefault(&config);
     }
+#endif
 
     ImGui_ImplOpenGL3_CreateFontsTexture();
 }

@@ -28,7 +28,14 @@
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
+#ifndef CONFIG_SWITCH
 #include "qemu/queue.h"
+#else
+// Minimal QTAILQ stub for Switch (input not fully implemented yet)
+#define QTAILQ_ENTRY(type) struct { struct type *tqe_next; struct type **tqe_prev; }
+#define QTAILQ_HEAD(name, type) struct name { struct type *tqh_first; struct type **tqh_last; }
+#endif
+
 #include "xemu-settings.h"
 #include <SDL2/SDL.h>
 

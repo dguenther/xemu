@@ -1,0 +1,545 @@
+#---------------------------------------------------------------------------------
+# xemu Nintendo Switch Port - Makefile
+#
+# This Makefile builds xemu for Nintendo Switch using devkitpro/libnx.
+# It is a standalone build system separate from the main meson-based build.
+#
+# Requirements:
+#   - devkitpro with devkitA64
+#   - switch-sdl2
+#   - switch-mesa (OpenGL 4.3)
+#   - switch-glad
+#   - switch-zlib
+#   - switch-libpng
+#
+# Usage:
+#   make -f switch/Makefile.switch
+#   make -f switch/Makefile.switch clean
+#   make -f switch/Makefile.switch nro
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#---------------------------------------------------------------------------------
+
+#---------------------------------------------------------------------------------
+# Environment
+#---------------------------------------------------------------------------------
+ifeq ($(strip $(DEVKITPRO)),)
+$(error "Please set DEVKITPRO in your environment. export DEVKITPRO=/opt/devkitpro")
+endif
+
+# Handle running from project root (make -f switch/Makefile.switch)
+# or from switch directory (cd switch && make -f Makefile.switch)
+ifneq ($(wildcard $(CURDIR)/switch/Makefile.switch),)
+    # Running from project root
+    TOPDIR ?= $(CURDIR)
+else
+    # Running from switch directory
+    TOPDIR ?= $(CURDIR)/..
+endif
+include $(DEVKITPRO)/libnx/switch_rules
+
+#---------------------------------------------------------------------------------
+# Build configuration
+#---------------------------------------------------------------------------------
+APP_TITLE   := xemu
+APP_AUTHOR  := xemu team
+APP_VERSION := 0.1.0-switch
+APP_ICON    := $(TOPDIR)/ui/icons/xemu_256x256.png
+
+TARGET      := xemu
+BUILD       := build-switch
+OUTDIR      := $(TOPDIR)/dist-switch
+SOURCES     := switch
+INCLUDES    := switch include
+
+#---------------------------------------------------------------------------------
+# Compiler flags
+#---------------------------------------------------------------------------------
+ARCH := -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE
+
+CFLAGS := -g -Wall -O2 -ffunction-sections \
+          $(ARCH) $(DEFINES)
+
+CFLAGS += -DXBOX=1 \
+          -DCONFIG_SWITCH=1 \
+          -D__SWITCH__ \
+          -DIMGUI_IMPL_OPENGL_LOADER_CUSTOM=1 \
+          -include glad/glad.h \
+          -D__BYTE_ORDER=1234 \
+          -D_GNU_SOURCE \
+          -DNEED_CPU_H \
+          -DCOMPILING_PER_TARGET \
+          -DCONFIG_TARGET=\"config-target.h\" \
+          -include $(TOPDIR)/switch/config-switch.h \
+          -include $(TOPDIR)/switch/platform_stubs.h \
+          -include $(TOPDIR)/switch/glib-compat.h
+
+CXXFLAGS := $(CFLAGS) -fno-rtti -fexceptions -std=c++17
+
+ASFLAGS := -g $(ARCH)
+
+LDFLAGS := -specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) \
+           -Wl,-Map,$(notdir $*.map)
+
+#---------------------------------------------------------------------------------
+# Libraries
+#---------------------------------------------------------------------------------
+# Note: Order matters for linking. glad must come before EGL/GL libs.
+LIBS_FULL := -lglad -lSDL2 -lEGL -lglapi -ldrm_nouveau \
+             -lnx -lm -lpthread
+LIBS_MINIMAL := -lnx -lm
+LIBS := $(LIBS_FULL)
+
+#---------------------------------------------------------------------------------
+# Include paths and library paths
+#---------------------------------------------------------------------------------
+LIBDIRS := $(PORTLIBS) $(LIBNX)
+LIBPATHS := $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
+
+# Build directory first for generated config headers
+# NATIVE_BUILD points to the existing x86 build directory for QAPI generated files
+NATIVE_BUILD := $(TOPDIR)/build
+
+INCLUDE := -I$(BUILD) \
+           -I$(TOPDIR)/switch \
+           -I$(TOPDIR)/switch/sys \
+           -I$(TOPDIR) \
+           -I$(TOPDIR)/include \
+           -I$(TOPDIR)/host/include/aarch64 \
+           -I$(TOPDIR)/host/include/generic \
+           -I$(NATIVE_BUILD) \
+           -I$(NATIVE_BUILD)/qapi \
+           -I$(TOPDIR)/target/i386 \
+           -I$(TOPDIR)/tcg/i386 \
+           -I$(TOPDIR)/tcg/aarch64 \
+           -I$(TOPDIR)/tcg \
+           -I$(TOPDIR)/accel/tcg \
+           -I$(TOPDIR)/hw/xbox \
+           -I$(TOPDIR)/ui \
+           -I$(TOPDIR)/ui/xui \
+           -I$(TOPDIR)/ui/thirdparty \
+           -I$(TOPDIR)/ui/thirdparty/noc_file_dialog \
+           -I$(TOPDIR)/ui/thirdparty/fpng \
+           -I$(TOPDIR)/subprojects/imgui \
+           -I$(TOPDIR)/subprojects/imgui/backends \
+           -I$(TOPDIR)/subprojects/implot \
+           -I$(TOPDIR)/ui/thirdparty/stb_image \
+           -I$(TOPDIR)/ui/thirdparty/fa \
+           -I$(TOPDIR)/subprojects/tomlplusplus/include \
+           -I$(TOPDIR)/subprojects/genconfig \
+           -I$(TOPDIR)/subprojects/json-3.2.0/include \
+           $(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
+           $(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+           -I$(DEVKITPRO)/portlibs/switch/include/SDL2
+
+#---------------------------------------------------------------------------------
+# Source files - Phase 1: Minimal bootstrap
+#---------------------------------------------------------------------------------
+
+# Switch-specific sources
+SWITCH_SRCS := \
+    switch/main-switch.c \
+    switch/oslib-switch.c \
+    switch/glib-compat.c \
+    switch/qemu-stubs.c \
+    switch/egl-switch.c \
+    switch/noc_file_dialog_switch.c \
+    switch/stb_image_impl.c \
+    switch/cpp-stubs.cc \
+    build/data/logo_sdf.png.c
+
+# Core QEMU utility sources
+# Note: util/osdep.c and util/memalign.c are excluded - oslib-switch.c provides Switch versions
+UTIL_SRCS := \
+    util/cutils.c \
+    util/unicode.c \
+    util/error.c \
+    util/error-report.c \
+    util/qemu-print.c \
+    util/bitmap.c \
+    util/bitops.c \
+    util/host-utils.c \
+    util/log.c \
+    util/crc32c.c \
+    util/uuid.c \
+    util/range.c \
+    util/fifo8.c \
+    util/cacheflush.c \
+    util/int128.c \
+    util/notify.c \
+    util/id.c \
+    util/path.c \
+    util/envlist.c \
+    util/module.c \
+    util/qemu-option.c \
+    util/qemu-config.c \
+    util/keyval.c \
+    util/guest-random.c \
+    util/interval-tree.c \
+    util/lockcnt.c \
+    util/rcu.c \
+    util/qht.c \
+    util/qdist.c \
+    util/qsp.c \
+    util/stats64.c \
+    util/reserved-region.c \
+    util/transactions.c \
+    util/fast-hash.c \
+    util/qemu-thread-posix.c \
+    util/thread-pool.c \
+    util/event_notifier-posix.c
+
+# QOM (QEMU Object Model) sources
+QOM_SRCS := \
+    qom/object.c \
+    qom/container.c \
+    qom/qom-hmp-cmds.c \
+    qom/qom-qmp-cmds.c \
+    qom/object_interfaces.c
+
+# QAPI sources (will need generation)
+QAPI_SRCS := \
+    qapi/qapi-builtin-visit.c \
+    qapi/qapi-builtin-types.c \
+    qapi/qmp-registry.c \
+    qapi/string-input-visitor.c \
+    qapi/string-output-visitor.c \
+    qapi/opts-visitor.c \
+    qapi/qobject-input-visitor.c \
+    qapi/qobject-output-visitor.c \
+    qapi/qapi-visit-core.c \
+    qapi/qapi-dealloc-visitor.c \
+    qapi/qapi-forward-visitor.c \
+    qapi/qapi-clone-visitor.c
+
+# QObject sources
+QOBJECT_SRCS := \
+    qobject/qnull.c \
+    qobject/qnum.c \
+    qobject/qstring.c \
+    qobject/qdict.c \
+    qobject/qlist.c \
+    qobject/qbool.c \
+    qobject/qlit.c \
+    qobject/qjson.c \
+    qobject/json-lexer.c \
+    qobject/json-parser.c \
+    qobject/json-writer.c
+
+# Crypto sources (minimal)
+CRYPTO_SRCS := \
+    crypto/init.c \
+    crypto/hash.c \
+    crypto/hmac.c \
+    crypto/aes.c \
+    crypto/random-platform.c
+
+# Block layer sources (minimal for ISO loading)
+BLOCK_SRCS := \
+    block.c \
+    block/raw-format.c \
+    block/file-posix.c \
+    block/qcow2.c \
+    block/io.c \
+    blockjob.c
+
+# HW base sources
+HW_BASE_SRCS := \
+    hw/core/qdev.c \
+    hw/core/qdev-properties.c \
+    hw/core/bus.c \
+    hw/core/resettable.c \
+    hw/core/clock.c \
+    hw/core/irq.c \
+    hw/core/sysbus.c \
+    hw/core/machine.c
+
+# Xbox HW sources
+XBOX_HW_SRCS := \
+    hw/xbox/xbox.c \
+    hw/xbox/xbox_pci.c \
+    hw/xbox/smbus.c \
+    hw/xbox/smbus_xbox_smc.c \
+    hw/xbox/amd_smbus.c \
+    hw/xbox/nvnet.c \
+    hw/xbox/nvnet_mii.c \
+    hw/xbox/acpi_xbox.c \
+    hw/xbox/lpc47m157.c \
+    hw/xbox/chihiro.c \
+    hw/xbox/chihiro-usb.c \
+    hw/xbox/mcpx/apu.c \
+    hw/xbox/mcpx/dsp/dsp.c \
+    hw/xbox/mcpx/dsp/dsp_cpu.c \
+    hw/xbox/mcpx/dsp/dsp_state.c \
+    hw/xbox/mcpx/dsp/dsp_disasm.c \
+    hw/xbox/nv2a/nv2a.c \
+    hw/xbox/nv2a/pbus.c \
+    hw/xbox/nv2a/pcounter.c \
+    hw/xbox/nv2a/pcrtc.c \
+    hw/xbox/nv2a/pfb.c \
+    hw/xbox/nv2a/pfifo.c \
+    hw/xbox/nv2a/pmc.c \
+    hw/xbox/nv2a/pramdac.c \
+    hw/xbox/nv2a/pramin.c \
+    hw/xbox/nv2a/prma.c \
+    hw/xbox/nv2a/prmcio.c \
+    hw/xbox/nv2a/prmdio.c \
+    hw/xbox/nv2a/prmfb.c \
+    hw/xbox/nv2a/prmvio.c \
+    hw/xbox/nv2a/ptimer.c \
+    hw/xbox/nv2a/pvideo.c \
+    hw/xbox/nv2a/user.c \
+    hw/xbox/nv2a/debug.c \
+    hw/xbox/nv2a/pgraph/pgraph.c \
+    hw/xbox/nv2a/pgraph/surface.c \
+    hw/xbox/nv2a/pgraph/texture.c \
+    hw/xbox/nv2a/pgraph/vertex.c \
+    hw/xbox/nv2a/pgraph/shaders.c \
+    hw/xbox/nv2a/pgraph/swizzle.c \
+    hw/xbox/nv2a/pgraph/gl/display.c \
+    hw/xbox/nv2a/pgraph/gl/renderer.c \
+    hw/xbox/nv2a/pgraph/gl/shaders.c
+
+# ImGui sources
+IMGUI_SRCS := \
+    subprojects/imgui/imgui.cpp \
+    subprojects/imgui/imgui_demo.cpp \
+    subprojects/imgui/imgui_draw.cpp \
+    subprojects/imgui/imgui_tables.cpp \
+    subprojects/imgui/imgui_widgets.cpp \
+    subprojects/imgui/backends/imgui_impl_sdl2.cpp \
+    subprojects/imgui/backends/imgui_impl_opengl3.cpp \
+    subprojects/imgui/misc/cpp/imgui_stdlib.cpp
+
+# ImPlot sources
+IMPLOT_SRCS := \
+    subprojects/implot/implot.cpp \
+    subprojects/implot/implot_items.cpp
+
+# fpng sources (for screenshot/PNG encoding)
+FPNG_SRCS := \
+    ui/thirdparty/fpng/fpng.cpp
+
+# UI sources (xemu-specific)
+UI_SRCS := \
+    ui/xemu-settings.cc \
+    ui/xui/main.cc \
+    ui/xui/main-menu.cc \
+    ui/xui/gl-helpers.cc \
+    ui/xui/widgets.cc \
+    ui/xui/viewport-manager.cc \
+    ui/xui/scene-manager.cc \
+    ui/xui/scene.cc \
+    ui/xui/scene-components.cc \
+    ui/xui/popup-menu.cc \
+    ui/xui/actions.cc \
+    ui/xui/welcome.cc \
+    ui/xui/notifications.cc \
+    ui/xui/monitor.cc \
+    ui/xui/font-manager.cc \
+    ui/xui/input-manager.cc \
+    ui/xui/snapshot-manager.cc \
+    ui/xui/reporting.cc \
+    ui/xui/animation.cc \
+    ui/xui/menubar.cc \
+    ui/input.c \
+    ui/kbd-state.c \
+    ui/keymaps.c
+
+# Audio sources (SDL only)
+AUDIO_SRCS := \
+    audio/audio.c \
+    audio/mixeng.c \
+    audio/noaudio.c \
+    audio/wavaudio.c \
+    audio/sdlaudio.c
+
+# TCG sources
+TCG_SRCS := \
+    accel/tcg/tcg-all.c \
+    accel/tcg/cpu-exec.c \
+    accel/tcg/cpu-exec-common.c \
+    accel/tcg/translate-all.c \
+    accel/tcg/translator.c \
+    accel/tcg/cputlb.c \
+    tcg/tcg.c \
+    tcg/tcg-op.c \
+    tcg/tcg-op-vec.c \
+    tcg/optimize.c \
+    tcg/tcg-common.c \
+    fpu/softfloat.c
+
+# Memory sources
+MEMORY_SRCS := \
+    system/memory.c \
+    system/physmem.c \
+    system/ioport.c \
+    system/dma-helpers.c \
+    system/cpus.c \
+    system/cpu-timers.c \
+    system/vl.c \
+    system/runstate.c \
+    system/reset.c \
+    system/qemu-seccomp.c \
+    system/globals.c \
+    system/watchpoint.c \
+    system/main.c
+
+# i386 target sources
+TARGET_I386_SRCS := \
+    target/i386/cpu.c \
+    target/i386/cpu-param.c \
+    target/i386/gdbstub.c \
+    target/i386/helper.c \
+    target/i386/xsave_helper.c \
+    target/i386/tcg/translate.c \
+    target/i386/tcg/cc_helper.c \
+    target/i386/tcg/excp_helper.c \
+    target/i386/tcg/fpu_helper.c \
+    target/i386/tcg/int_helper.c \
+    target/i386/tcg/mem_helper.c \
+    target/i386/tcg/misc_helper.c \
+    target/i386/tcg/seg_helper.c \
+    target/i386/tcg/svm_helper.c \
+    target/i386/tcg/bpt_helper.c \
+    target/i386/tcg/mpx_helper.c
+
+# Combine all sources for UI-only build (Phase 2: HUD integration)
+ALL_SRCS := \
+    $(SWITCH_SRCS) \
+    $(IMGUI_SRCS) \
+    $(IMPLOT_SRCS) \
+    $(FPNG_SRCS) \
+    $(UI_SRCS)
+
+# Minimal bootstrap build: only the Switch entry point (Phase 1)
+ifeq ($(SWITCH_BOOTSTRAP),1)
+ALL_SRCS := switch/main-switch.c switch/oslib-switch.c switch/glib-compat.c switch/qemu-stubs.c
+LIBS := $(LIBS_FULL)
+endif
+
+# Full emulator build would include all of these (Phase 3):
+# $(UTIL_SRCS) $(QOM_SRCS) $(QOBJECT_SRCS) $(CRYPTO_SRCS)
+# $(BLOCK_SRCS) $(HW_BASE_SRCS) $(XBOX_HW_SRCS)
+# $(AUDIO_SRCS) $(TCG_SRCS) $(MEMORY_SRCS) $(TARGET_I386_SRCS)
+
+#---------------------------------------------------------------------------------
+# Object files
+#---------------------------------------------------------------------------------
+CFILES   := $(filter %.c,$(ALL_SRCS))
+CCFILES  := $(filter %.cc,$(ALL_SRCS))
+CPPFILES := $(filter %.cpp,$(ALL_SRCS))
+SFILES   := $(filter %.s,$(ALL_SRCS))
+
+# Convert source paths to object paths
+OFILES_C   := $(addprefix $(BUILD)/,$(CFILES:.c=.o))
+OFILES_CC  := $(addprefix $(BUILD)/,$(CCFILES:.cc=.o))
+OFILES_CPP := $(addprefix $(BUILD)/,$(CPPFILES:.cpp=.o))
+OFILES_S   := $(addprefix $(BUILD)/,$(SFILES:.s=.o))
+OFILES     := $(OFILES_C) $(OFILES_CC) $(OFILES_CPP) $(OFILES_S)
+DFILES     := $(OFILES:.o=.d)
+
+#---------------------------------------------------------------------------------
+# Build rules
+#---------------------------------------------------------------------------------
+.PHONY: all clean nro directories
+
+all: directories $(OUTDIR)/$(TARGET).elf
+
+nro: $(OUTDIR)/$(TARGET).nro
+
+directories:
+	@mkdir -p $(BUILD)
+	@mkdir -p $(OUTDIR)
+	@mkdir -p $(dir $(OFILES))
+
+#---------------------------------------------------------------------------------
+# Generated headers - Create config-host.h and config-target.h wrappers
+#---------------------------------------------------------------------------------
+GENERATED_HEADERS := $(BUILD)/config-host.h $(BUILD)/config-target.h
+
+$(BUILD)/config-host.h: $(TOPDIR)/switch/config-switch.h
+	@mkdir -p $(BUILD)
+	@echo "Generating $@..."
+	@echo "/* Auto-generated config-host.h for Switch build */" > $@
+	@echo "#ifndef CONFIG_HOST_H" >> $@
+	@echo "#define CONFIG_HOST_H" >> $@
+	@echo "#include \"$(TOPDIR)/switch/config-switch.h\"" >> $@
+	@echo "#endif" >> $@
+
+$(BUILD)/config-target.h: $(TOPDIR)/switch/config-switch.h
+	@mkdir -p $(BUILD)
+	@echo "Generating $@..."
+	@echo "/* Auto-generated config-target.h for Switch build */" > $@
+	@echo "#ifndef CONFIG_TARGET_H" >> $@
+	@echo "#define CONFIG_TARGET_H" >> $@
+	@echo "/* i386 target configuration */" >> $@
+	@echo "#define TARGET_NAME \"i386\"" >> $@
+	@echo "#define TARGET_I386 1" >> $@
+	@echo "#define TARGET_LONG_BITS 32" >> $@
+	@echo "#define TARGET_INSN_START_EXTRA_WORDS 1" >> $@
+	@echo "#define TARGET_PAGE_BITS 12" >> $@
+	@echo "#define TARGET_PHYS_ADDR_SPACE_BITS 36" >> $@
+	@echo "#define TARGET_VIRT_ADDR_SPACE_BITS 32" >> $@
+	@echo "#undef TARGET_BIG_ENDIAN" >> $@
+	@echo "#define CONFIG_SOFTMMU 1" >> $@
+	@echo "#include \"$(TOPDIR)/switch/config-switch.h\"" >> $@
+	@echo "#endif" >> $@
+
+generated-headers: $(GENERATED_HEADERS)
+
+$(OUTDIR)/$(TARGET).nro: $(OUTDIR)/$(TARGET).elf
+	@mkdir -p $(OUTDIR)
+	@elf2nro $< $@ \
+		--icon=$(APP_ICON) \
+		--nacp=$(BUILD)/$(TARGET).nacp
+
+$(BUILD)/$(TARGET).nacp:
+	@mkdir -p $(BUILD)
+	@nacptool --create "$(APP_TITLE)" "$(APP_AUTHOR)" "$(APP_VERSION)" $@
+
+$(OUTDIR)/$(TARGET).elf: $(OFILES) $(BUILD)/$(TARGET).nacp
+	@echo "Linking $@..."
+	@mkdir -p $(OUTDIR)
+	@$(CXX) $(LDFLAGS) $(OFILES) $(LIBPATHS) $(LIBS) -o $@
+	@echo "Built $@"
+
+$(BUILD)/%.o: $(TOPDIR)/%.c $(GENERATED_HEADERS)
+	@echo "Compiling $<..."
+	@mkdir -p $(dir $@)
+	@$(CC) -MMD -MP -MF $(BUILD)/$*.d $(CFLAGS) $(INCLUDE) -c $< -o $@
+
+$(BUILD)/%.o: $(TOPDIR)/%.cc $(GENERATED_HEADERS)
+	@echo "Compiling $<..."
+	@mkdir -p $(dir $@)
+	@$(CXX) -MMD -MP -MF $(BUILD)/$*.d $(CXXFLAGS) $(INCLUDE) -c $< -o $@
+
+$(BUILD)/%.o: $(TOPDIR)/%.cpp $(GENERATED_HEADERS)
+	@echo "Compiling $<..."
+	@mkdir -p $(dir $@)
+	@$(CXX) -MMD -MP -MF $(BUILD)/$*.d $(CXXFLAGS) $(INCLUDE) -c $< -o $@
+
+$(BUILD)/%.o: $(TOPDIR)/%.s
+	@echo "Assembling $<..."
+	@mkdir -p $(dir $@)
+	@$(CC) -MMD -MP -MF $(BUILD)/$*.d -x assembler-with-cpp $(ASFLAGS) -c $< -o $@
+
+clean:
+	@echo "Cleaning..."
+	@rm -rf $(BUILD) $(OUTDIR)
+
+#---------------------------------------------------------------------------------
+# Dependencies
+#---------------------------------------------------------------------------------
+-include $(DFILES)
+
+#---------------------------------------------------------------------------------
+# Debugging targets
+#---------------------------------------------------------------------------------
+.PHONY: print-sources
+
+print-sources:
+	@echo "=== Source files ==="
+	@for f in $(ALL_SRCS); do echo "  $$f"; done
+	@echo "=== Object files ==="
+	@for f in $(OFILES); do echo "  $$f"; done

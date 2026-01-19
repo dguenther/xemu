@@ -24,17 +24,31 @@
 #define XEMU_HUD_H
 
 #include <SDL.h>
+
+// OpenGL loader abstraction: use glad on Switch, epoxy elsewhere
+#ifdef CONFIG_SWITCH
+#include <glad/glad.h>
+#else
 #include <epoxy/gl.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#ifndef CONFIG_SWITCH
+// QEMU Error type - not available on Switch
+typedef struct Error Error;
+#endif
+
 // Implemented in xemu.c
 int xemu_is_fullscreen(void);
 void xemu_toggle_fullscreen(void);
+
+#ifndef CONFIG_SWITCH
 void xemu_eject_disc(Error **errp);
 void xemu_load_disc(const char *path, Error **errp);
+#endif
 
 // Implemented in xemu_hud.cc
 void xemu_hud_init(SDL_Window *window, void *sdl_gl_context);

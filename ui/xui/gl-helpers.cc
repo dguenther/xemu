@@ -30,6 +30,11 @@
 #include <math.h>
 #include <stdio.h>
 #include <vector>
+#include <ctime>
+
+#ifdef CONFIG_SWITCH
+#include "qemu-types-stub.h"
+#endif
 
 #include "ui/shader/xemu-logo-frag.h"
 
@@ -160,12 +165,19 @@ static GLuint InitTexture(unsigned char *data, int width, int height,
 
 static GLuint LoadTextureFromMemory(const unsigned char *buf, unsigned int size, bool flip=true)
 {
+    // Handle empty/missing texture data gracefully (e.g., on Switch with stubbed assets)
+    if (buf == NULL || size == 0) {
+        return 0;
+    }
+
     // Flip vertically so textures are loaded according to GL convention.
     stbi_set_flip_vertically_on_load(flip);
 
     int width, height, channels = 0;
     unsigned char *data = stbi_load_from_memory(buf, size, &width, &height, &channels, 4);
-    assert(data != NULL);
+    if (data == NULL) {
+        return 0;  // Return no texture instead of crashing
+    }
 
     GLuint tex = InitTexture(data, width, height, channels);
     stbi_image_free(data);
@@ -942,6 +954,11 @@ float GetDisplayAspectRatio(int width, int height)
 
 void RenderFramebuffer(GLint tex, int width, int height, bool flip)
 {
+    // Skip rendering if no valid texture or dimensions
+    if (tex == 0 || width <= 0 || height <= 0) {
+        return;
+    }
+
     int tw, th;
     float scale[2];
 
@@ -949,6 +966,11 @@ void RenderFramebuffer(GLint tex, int width, int height, bool flip)
     glBindTexture(GL_TEXTURE_2D, tex);
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tw);
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &th);
+
+    // Skip if texture has no valid size
+    if (tw <= 0 || th <= 0) {
+        return;
+    }
 
     // Calculate scaling factors
     if (g_config.display.ui.fit == CONFIG_DISPLAY_UI_FIT_STRETCH) {

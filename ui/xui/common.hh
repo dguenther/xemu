@@ -19,7 +19,14 @@
 #pragma once
 
 #include <SDL.h>
+
+// OpenGL loader abstraction: use glad on Switch, epoxy elsewhere
+#ifdef CONFIG_SWITCH
+#include <glad/glad.h>
+#else
 #include <epoxy/gl.h>
+#endif
+
 #include "ui/xemu-settings.h"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -34,7 +41,8 @@
 extern "C" {
 #include <noc_file_dialog.h>
 
-// Include necessary QEMU headers
+#ifndef CONFIG_SWITCH
+// Include QEMU headers (not available on Switch)
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "sysemu/sysemu.h"
@@ -49,6 +57,7 @@ extern "C" {
 #undef atomic_fetch_xor
 #undef atomic_fetch_or
 #undef atomic_fetch_sub
+#endif // !CONFIG_SWITCH
 }
 
 extern bool g_screenshot_pending;

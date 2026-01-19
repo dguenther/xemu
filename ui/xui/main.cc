@@ -18,7 +18,13 @@
 //
 
 #include <SDL.h>
+// OpenGL loader abstraction: use glad on Switch, epoxy elsewhere
+#ifdef CONFIG_SWITCH
+#include <glad/glad.h>
+#include "egl-switch.h"
+#else
 #include <epoxy/gl.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -65,6 +71,22 @@ static float g_last_scale;
 static int g_vsync;
 static GLuint g_tex;
 static bool g_flip_req;
+
+#ifdef CONFIG_SWITCH
+static int g_switch_boot_bios_requested = 0;
+
+extern "C" void switch_request_boot_bios(void)
+{
+    g_switch_boot_bios_requested = 1;
+}
+
+extern "C" int switch_consume_boot_bios_request(void)
+{
+    int v = g_switch_boot_bios_requested;
+    g_switch_boot_bios_requested = 0;
+    return v;
+}
+#endif
 
 
 static void InitializeStyle()
@@ -145,9 +167,21 @@ void xemu_hud_init(SDL_Window* window, void* sdl_gl_context)
     io.IniFilename = NULL;
 
     // Setup Platform/Renderer bindings
+#ifdef CONFIG_SWITCH
+    // On Switch, we skip SDL2 backend since we use EGL directly without SDL window
+    // We only use the OpenGL3 backend and manually handle display size/input
+    (void)window;
+    (void)sdl_gl_context;
+    ImGui_ImplOpenGL3_Init("#version 430");
+    g_sdl_window = NULL;
+    // Set initial display size
+    io.DisplaySize = ImVec2((float)switch_egl_get_width(), (float)switch_egl_get_height());
+    io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+#else
     ImGui_ImplSDL2_InitForOpenGL(window, sdl_gl_context);
     ImGui_ImplOpenGL3_Init("#version 150");
     g_sdl_window = window;
+#endif
     ImPlot::CreateContext();
 
 #if defined(_WIN32)
@@ -157,14 +191,23 @@ void xemu_hud_init(SDL_Window* window, void* sdl_gl_context)
 #endif
     g_last_scale = g_viewport_mgr.m_scale;
     InitializeStyle();
+#ifdef CONFIG_SWITCH
+    // Build 2: show the real main menu by default on Switch.
+    // The welcome screen isn't useful without mouse/keyboard and blocks menu testing.
+    first_boot_window.is_open = false;
+    g_main_menu.SetNextViewIndexWithFocus(g_config.general.last_viewed_menu_index);
+#else
     g_main_menu.SetNextViewIndex(g_config.general.last_viewed_menu_index);
     first_boot_window.is_open = g_config.general.show_welcome;
+#endif
 }
 
 void xemu_hud_cleanup(void)
 {
     ImGui_ImplOpenGL3_Shutdown();
+#ifndef CONFIG_SWITCH
     ImGui_ImplSDL2_Shutdown();
+#endif
     ImGui::DestroyContext();
 }
 
@@ -175,8 +218,133 @@ void xemu_hud_process_sdl_events(SDL_Event *event)
         return;
     }
 
+#ifndef CONFIG_SWITCH
     ImGui_ImplSDL2_ProcessEvent(event);
+#else
+    (void)event;  // On Switch, we handle input differently
+#endif
 }
+
+#ifdef CONFIG_SWITCH
+// Update ImGui gamepad state from Switch controller
+extern "C" void xemu_hud_update_gamepad_state(uint64_t buttons_down, uint64_t buttons_held,
+                                               float lstick_x, float lstick_y,
+                                               float rstick_x, float rstick_y)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    // Switch button definitions from libnx
+    const uint64_t HidNpadButton_A           = (1ULL << 0);
+    const uint64_t HidNpadButton_B           = (1ULL << 1);
+    const uint64_t HidNpadButton_X           = (1ULL << 2);
+    const uint64_t HidNpadButton_Y           = (1ULL << 3);
+    const uint64_t HidNpadButton_StickL      = (1ULL << 4);
+    const uint64_t HidNpadButton_StickR      = (1ULL << 5);
+    const uint64_t HidNpadButton_L           = (1ULL << 6);
+    const uint64_t HidNpadButton_R           = (1ULL << 7);
+    const uint64_t HidNpadButton_ZL          = (1ULL << 8);
+    const uint64_t HidNpadButton_ZR          = (1ULL << 9);
+    const uint64_t HidNpadButton_Plus        = (1ULL << 10);
+    const uint64_t HidNpadButton_Minus       = (1ULL << 11);
+    const uint64_t HidNpadButton_Left        = (1ULL << 12);
+    const uint64_t HidNpadButton_Up          = (1ULL << 13);
+    const uint64_t HidNpadButton_Right       = (1ULL << 14);
+    const uint64_t HidNpadButton_Down        = (1ULL << 15);
+
+    // Always feed current state every frame (ImGui expects continuous "held" state for repeats).
+    auto set_button = [&](ImGuiKey key, uint64_t button_bit) {
+        io.AddKeyEvent(key, (buttons_held & button_bit) != 0);
+    };
+
+    // Map face/shoulder/etc buttons (direct).
+    set_button(ImGuiKey_GamepadFaceDown, HidNpadButton_A);
+    set_button(ImGuiKey_GamepadFaceRight, HidNpadButton_B);
+    set_button(ImGuiKey_GamepadFaceLeft, HidNpadButton_Y);
+    set_button(ImGuiKey_GamepadFaceUp, HidNpadButton_X);
+    set_button(ImGuiKey_GamepadL1, HidNpadButton_L);
+    set_button(ImGuiKey_GamepadR1, HidNpadButton_R);
+    set_button(ImGuiKey_GamepadL2, HidNpadButton_ZL);
+    set_button(ImGuiKey_GamepadR2, HidNpadButton_ZR);
+    set_button(ImGuiKey_GamepadStart, HidNpadButton_Plus);
+    set_button(ImGuiKey_GamepadBack, HidNpadButton_Minus);
+    set_button(ImGuiKey_GamepadL3, HidNpadButton_StickL);
+    set_button(ImGuiKey_GamepadR3, HidNpadButton_StickR);
+
+    // Map analog sticks (normalized -1..+1 from libnx) to ImGui's 0..1 analog values.
+    const float deadzone = 0.15f;
+    auto analog_mag = [&](float v) -> float {
+        float av = fabsf(v);
+        if (av <= deadzone) {
+            return 0.0f;
+        }
+        float mag = (av - deadzone) / (1.0f - deadzone);
+        if (mag < 0.0f) mag = 0.0f;
+        if (mag > 1.0f) mag = 1.0f;
+        return mag;
+    };
+
+    float lx = analog_mag(lstick_x);
+    float ly = analog_mag(lstick_y);
+    float rx = analog_mag(rstick_x);
+    float ry = analog_mag(rstick_y);
+
+    bool left = lstick_x < -deadzone;
+    bool right = lstick_x > deadzone;
+    bool up = lstick_y > deadzone;
+    bool down = lstick_y < -deadzone;
+    bool rleft = rstick_x < -deadzone;
+    bool rright = rstick_x > deadzone;
+    bool rup = rstick_y > deadzone;
+    bool rdown = rstick_y < -deadzone;
+
+    // When a direction isn't active, pass analog value = 0 to avoid canceling opposite directions.
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadLStickLeft, left, left ? lx : 0.0f);
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadLStickRight, right, right ? lx : 0.0f);
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadLStickUp, up, up ? ly : 0.0f);
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadLStickDown, down, down ? ly : 0.0f);
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadRStickLeft, rleft, rleft ? rx : 0.0f);
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadRStickRight, rright, rright ? rx : 0.0f);
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadRStickUp, rup, rup ? ry : 0.0f);
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadRStickDown, rdown, rdown ? ry : 0.0f);
+
+    // ImGui's default nav movement uses D-pad keys for move requests, not LStick keys.
+    // Mirror left stick directions into D-pad keys so analog can navigate the UI.
+    const bool dpad_left_btn = (buttons_held & HidNpadButton_Left) != 0;
+    const bool dpad_right_btn = (buttons_held & HidNpadButton_Right) != 0;
+    const bool dpad_up_btn = (buttons_held & HidNpadButton_Up) != 0;
+    const bool dpad_down_btn = (buttons_held & HidNpadButton_Down) != 0;
+
+    const bool dpad_left = dpad_left_btn || left;
+    const bool dpad_right = dpad_right_btn || right;
+    const bool dpad_up = dpad_up_btn || up;
+    const bool dpad_down = dpad_down_btn || down;
+
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadDpadLeft, dpad_left, dpad_left_btn ? 1.0f : (left ? lx : 0.0f));
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadDpadRight, dpad_right, dpad_right_btn ? 1.0f : (right ? lx : 0.0f));
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadDpadUp, dpad_up, dpad_up_btn ? 1.0f : (up ? ly : 0.0f));
+    io.AddKeyAnalogEvent(ImGuiKey_GamepadDpadDown, dpad_down, dpad_down_btn ? 1.0f : (down ? ly : 0.0f));
+
+    // Debug logging
+    static int input_debug_count = 0;
+    if (input_debug_count < 20) {
+        if (buttons_down != 0) {
+            fprintf(stderr, "BTN: down=0x%llx A=%d B=%d DPad=%d%d%d%d\n",
+                    (unsigned long long)buttons_down,
+                    (buttons_down & HidNpadButton_A) ? 1 : 0,
+                    (buttons_down & HidNpadButton_B) ? 1 : 0,
+                    (buttons_down & HidNpadButton_Up) ? 1 : 0,
+                    (buttons_down & HidNpadButton_Down) ? 1 : 0,
+                    (buttons_down & HidNpadButton_Left) ? 1 : 0,
+                    (buttons_down & HidNpadButton_Right) ? 1 : 0);
+            input_debug_count++;
+        }
+        if (lx > 0.0f || ly > 0.0f) {
+            fprintf(stderr, "LSTICK: x=%.2f y=%.2f\n", lstick_x, lstick_y);
+            input_debug_count++;
+        }
+    }
+}
+#endif
 
 void xemu_hud_should_capture_kbd_mouse(int *kbd, int *mouse)
 {
@@ -193,10 +361,28 @@ void xemu_hud_set_framebuffer_texture(GLuint tex, bool flip)
 
 void xemu_hud_render(void)
 {
+#ifdef CONFIG_SWITCH
+    static int render_debug_count = 0;
+    #define RENDER_DBG(msg) do { if (render_debug_count < 3) { fprintf(stderr, "render: %s\n", msg); fflush(stderr); } } while(0)
+#else
+    #define RENDER_DBG(msg) ((void)0)
+#endif
+
+    RENDER_DBG("start");
+
+#ifdef CONFIG_SWITCH
+    // Clear the screen with a visible color on Switch
+    glClearColor(0.1f, 0.1f, 0.2f, 1.0f);  // Dark blue-gray
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glViewport(0, 0, switch_egl_get_width(), switch_egl_get_height());
+#endif
+
     ImGuiIO& io = ImGui::GetIO();
     uint32_t now = SDL_GetTicks();
 
+    RENDER_DBG("viewport update");
     g_viewport_mgr.Update();
+    RENDER_DBG("font update");
     g_font_mgr.Update();
     if (g_last_scale != g_viewport_mgr.m_scale) {
         ImGuiStyle &style = ImGui::GetStyle();
@@ -205,21 +391,56 @@ void xemu_hud_render(void)
         g_last_scale = g_viewport_mgr.m_scale;
     }
 
+    RENDER_DBG("framebuffer check");
     if (!first_boot_window.is_open) {
         int ww, wh;
+#ifdef CONFIG_SWITCH
+        ww = switch_egl_get_width();
+        wh = switch_egl_get_height();
+#else
         SDL_GL_GetDrawableSize(g_sdl_window, &ww, &wh);
+#endif
+        RENDER_DBG("RenderFramebuffer");
         RenderFramebuffer(g_tex, ww, wh, g_flip_req);
     }
 
+    RENDER_DBG("ImGui_ImplOpenGL3_NewFrame");
     ImGui_ImplOpenGL3_NewFrame();
     io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
+#ifdef CONFIG_SWITCH
+    // On Switch, we skip SDL2 backend and manually set up ImGui frame
+    // Set display size from EGL
+    io.DisplaySize = ImVec2((float)switch_egl_get_width(), (float)switch_egl_get_height());
+    io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+    // Set delta time (ImGui needs this for animations)
+    static uint32_t last_time = 0;
+    uint32_t current_time = SDL_GetTicks();
+    io.DeltaTime = last_time > 0 ? (float)(current_time - last_time) / 1000.0f : 1.0f / 60.0f;
+    if (io.DeltaTime <= 0.0f) io.DeltaTime = 1.0f / 60.0f;
+    last_time = current_time;
+#else
     ImGui_ImplSDL2_NewFrame();
+#endif
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
+    RENDER_DBG("input update");
     g_input_mgr.Update();
 
+    RENDER_DBG("ImGui::NewFrame");
     ImGui::NewFrame();
+    RENDER_DBG("ProcessKeyboardShortcuts");
     ProcessKeyboardShortcuts();
+
+#ifdef CONFIG_SWITCH
+    render_debug_count++;
+
+    // Allow reopening the main menu after it is closed.
+    // Map: Minus (ImGuiKey_GamepadBack) -> open menu when no scene is active.
+    if (!g_scene_mgr.IsDisplayingScene() &&
+        ImGui::IsKeyPressed(ImGuiKey_GamepadBack)) {
+        g_main_menu.SetNextViewIndexWithFocus(g_config.general.last_viewed_menu_index);
+    }
+#endif
 
 #if defined(CONFIG_RENDERDOC)
     if (g_capture_renderdoc_frame) {
@@ -326,10 +547,12 @@ void xemu_hud_render(void)
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+#ifndef CONFIG_SWITCH
     if (g_vsync != g_config.display.window.vsync) {
         g_vsync = g_config.display.window.vsync;
         SDL_GL_SetSwapInterval(g_vsync ? 1 : 0);
     }
+#endif
 
     if (g_screenshot_pending) {
         SaveScreenshot(g_tex, g_flip_req);
