@@ -148,7 +148,7 @@ SWITCH_SRCS := \
     switch/main-switch.c \
     switch/oslib-switch.c \
     switch/glib-compat.c \
-    $(filter-out switch/qemu-stubs/qemu-opts.c, $(wildcard switch/qemu-stubs/*.c)) \
+    $(wildcard switch/qemu-stubs/*.c) \
     switch/noc_file_dialog_switch.c \
     switch/stb_image_impl.c \
     switch/cpp-stubs.cc \
@@ -361,16 +361,6 @@ HW_BASE_SRCS := \
     hw/smbios/smbios-stub.c \
     hw/rtc/mc146818rtc.c \
     scsi/pr-manager-stub.c
-
-# IDE controller sources
-IDE_SRCS := \
-    hw/ide/core.c \
-    hw/ide/atapi.c \
-    hw/ide/pci.c \
-    hw/ide/piix.c \
-    hw/ide/ide-bus.c \
-    hw/ide/ide-dev.c \
-    hw/ide/ioport.c
 
 # PCI core sources
 PCI_SRCS := \
