@@ -7,6 +7,13 @@
 #include "qemu/osdep.h"
 #include "common.h"
 
+/*
+ * Memory stubs - only used when NOT building the QEMU core.
+ * When SWITCH_QEMU_CORE is defined, system/memory.c and system/physmem.c
+ * provide the real implementations.
+ */
+#ifndef SWITCH_QEMU_CORE
+
 /* Forward declarations for memory types */
 typedef uint64_t hwaddr;
 typedef uint64_t vaddr;
@@ -144,6 +151,9 @@ AddressSpace *address_space_memory = NULL;
 
 AddressSpace *address_space_io = NULL;
 
+/* RAM list */
+RAMList ram_list = { .blocks = QLIST_HEAD_INITIALIZER(ram_list.blocks) };
+
 AddressSpace *cpu_get_address_space(CPUState *cpu, int asidx)
 {
     (void)cpu; (void)asidx;
@@ -237,9 +247,6 @@ AddressSpace *address_space_translate_for_iotlb(CPUState *cpu, int asidx, hwaddr
     (void)cpu; (void)asidx; (void)addr;
     return NULL;
 }
-
-/* RAM list */
-RAMList ram_list = { .blocks = QLIST_HEAD_INITIALIZER(ram_list.blocks) };
 
 /* Additional memory functions */
 DeviceState *memory_region_owner(MemoryRegion *mr)
@@ -356,3 +363,5 @@ void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr, hwaddr size)
 {
     (void)mr; (void)addr; (void)size;
 }
+
+#endif /* !SWITCH_QEMU_CORE */

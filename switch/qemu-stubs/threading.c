@@ -9,6 +9,13 @@
 #include "qemu/thread.h"
 #include "sysemu/cpus.h"
 
+/*
+ * These stubs are only used when NOT building the QEMU core.
+ * When SWITCH_QEMU_CORE is defined, the real implementations come from
+ * system/cpus.c, system/runstate.c, system/watchpoint.c
+ */
+#ifndef SWITCH_QEMU_CORE
+
 /* Forward declarations */
 typedef void (*VMChangeStateHandler)(void *opaque, int running, RunState state);
 typedef int WakeupReason;
@@ -173,16 +180,6 @@ void cpu_synchronize_all_post_reset(void)
 {
 }
 
-/* KVM functions */
-void kvm_reset_irq_delivered(void)
-{
-}
-
-bool kvm_get_irq_delivered(void)
-{
-    return false;
-}
-
 /* Suspend notifier functions */
 void qemu_register_suspend_notifier(Notifier *notifier)
 {
@@ -216,13 +213,28 @@ void qemu_init_vcpu(CPUState *cpu)
     (void)cpu;
 }
 
-/* x86 CPU functions */
+#endif /* !SWITCH_QEMU_CORE */
+
+/*
+ * KVM functions - these are called by hw/rtc/mc146818rtc.c but KVM is not
+ * available on Switch. Always provide stubs.
+ */
+void kvm_reset_irq_delivered(void)
+{
+}
+
+bool kvm_get_irq_delivered(void)
+{
+    return false;
+}
+
+/* x86 CPU functions - always needed */
 void __attribute__((weak)) x86_cpu_after_reset(CPUState *cpu)
 {
     (void)cpu;
 }
 
-/* TLB functions */
+/* TLB functions - always needed */
 void __attribute__((weak)) tlb_flush(CPUState *cpu)
 {
     (void)cpu;

@@ -3700,3 +3700,18 @@ gboolean g_source_is_destroyed(GSource *source)
 {
     return (source->flags & G_SOURCE_DESTROYED) != 0;
 }
+
+void g_source_add_poll(GSource *source, GPollFD *fd)
+{
+    /* Add poll fd to source - stub implementation */
+    (void)source;
+    (void)fd;
+    /* For Switch, we don't fully implement GMainLoop polling */
+}
+
+void g_source_remove_poll(GSource *source, GPollFD *fd)
+{
+    /* Remove poll fd from source - stub implementation */
+    (void)source;
+    (void)fd;
+}

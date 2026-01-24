@@ -30,6 +30,17 @@
 typedef struct Error Error;
 
 /*
+ * Pipe stub for Switch
+ * libnx doesn't have pipe(), but we can provide a stub that fails gracefully
+ */
+int pipe(int pipefd[2])
+{
+    /* No pipe support on Switch - just fail */
+    errno = ENOSYS;
+    return -1;
+}
+
+/*
  * Thread ID handling
  * libnx uses pthreads, so we use pthread_self()
  */
@@ -463,13 +474,55 @@ long qemu_get_page_size(void)
 }
 
 /*
- * Misc OS functions
+ * Main loop initialization for Switch
+ * This is a simplified version of util/main-loop.c's qemu_init_main_loop()
+ * that creates the essential AioContext for block operations.
  */
-int qemu_init_main_loop(void **errp)
+
+/* External declarations for AioContext functions */
+typedef struct AioContext AioContext;
+extern AioContext *aio_context_new(Error **errp);
+extern void qemu_set_current_aio_context(AioContext *ctx);
+
+/* init_clocks callback type and declaration */
+typedef void (*QEMUTimerListNotifyCB)(void *opaque, int type);
+extern void init_clocks(QEMUTimerListNotifyCB fn);
+
+/* Global AioContext - matches util/main-loop.c */
+static AioContext *qemu_aio_context;
+
+AioContext *qemu_get_aio_context(void)
 {
-    (void)errp;
+    return qemu_aio_context;
+}
+
+/* Timer notify callback - does nothing on Switch (no signal-based timers) */
+static void switch_timer_notify_cb(void *opaque, int type)
+{
+    (void)opaque;
+    (void)type;
+}
+
+int qemu_init_main_loop(Error **errp)
+{
+    /* Initialize clocks */
+    init_clocks(switch_timer_notify_cb);
+
+    /* Create the main AioContext */
+    qemu_aio_context = aio_context_new(errp);
+    if (!qemu_aio_context) {
+        return -1;
+    }
+
+    /* Set this thread's AioContext to the main one */
+    qemu_set_current_aio_context(qemu_aio_context);
+
     return 0;
 }
+
+/*
+ * Misc OS functions
+ */
 
 void os_setup_early_signal_handling(void)
 {

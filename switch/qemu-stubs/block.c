@@ -278,3 +278,24 @@ BlockDriverState * __attribute__((weak)) bdrv_next(BdrvNextIterator *it)
 void __attribute__((weak)) blk_commit_all(void)
 {
 }
+/* Additional block stubs needed by system/vl.c and blockdev.c */
+int __attribute__((weak)) bdrv_snapshot_delete(BlockDriverState *bs, const char *snapshot_id, const char *name, Error **errp)
+{
+    (void)bs; (void)snapshot_id; (void)name; (void)errp;
+    return 0;
+}
+
+void __attribute__((weak)) job_cancel_sync(Job *job, bool force)
+{
+    (void)job; (void)force;
+}
+
+void __attribute__((weak)) job_start(Job *job)
+{
+    (void)job;
+}
+
+void __attribute__((weak)) timed_average_init(void *ta, void *clock_type, uint64_t period)
+{
+    (void)ta; (void)clock_type; (void)period;
+}

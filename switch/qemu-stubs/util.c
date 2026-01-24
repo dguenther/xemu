@@ -19,11 +19,17 @@ void qemu_notify_event(void)
 
 __attribute__((weak)) ICountMode use_icount = 0;
 
+/*
+ * qemu_find_file is only stubbed when NOT building the QEMU core.
+ * When SWITCH_QEMU_CORE is defined, system/datadir.c provides the real implementation.
+ */
+#ifndef SWITCH_QEMU_CORE
 char *qemu_find_file(int type, const char *name)
 {
     (void)type; (void)name;
     return NULL;
 }
+#endif /* !SWITCH_QEMU_CORE */
 
 void defer_call_begin(void)
 {

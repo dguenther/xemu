@@ -234,3 +234,7 @@ void __attribute__((weak)) trace_event_register_group(void *group)
 {
     (void)group;
 }
+void __attribute__((weak)) trace_event_set_state_dynamic(void *ev, bool state)
+{
+    (void)ev; (void)state;
+}

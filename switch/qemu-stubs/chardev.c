@@ -34,8 +34,14 @@ void g_source_destroy(GSource *source)
     /* No-op stub */
 }
 
+/*
+ * serial_hd is only stubbed when NOT building the QEMU core.
+ * When SWITCH_QEMU_CORE is defined, system/vl.c provides the real implementation.
+ */
+#ifndef SWITCH_QEMU_CORE
 Chardev *serial_hd(int i)
 {
     (void)i;
     return NULL;
 }
+#endif /* !SWITCH_QEMU_CORE */

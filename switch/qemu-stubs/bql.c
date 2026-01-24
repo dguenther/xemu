@@ -8,11 +8,9 @@
 #include "common.h"
 
 /*
- * Big QEMU Lock (BQL) stubs
- * Note: bql_lock_impl, bql_unlock, and bql_locked are now provided by system/cpus.c
- * We only need to provide the main loop lock functions that may not be in all builds
+ * These functions are called by system/runstate.c but are normally provided
+ * by util/main-loop.c which we don't include. Always provide stubs.
  */
-
 void qemu_mutex_lock_main_loop(void)
 {
 }
@@ -20,6 +18,12 @@ void qemu_mutex_lock_main_loop(void)
 void qemu_init_main_loop_lock(void)
 {
 }
+
+/*
+ * The following BQL functions are only stubbed when NOT building the QEMU core.
+ * When SWITCH_QEMU_CORE is defined, system/cpus.c provides the real implementations.
+ */
+#ifndef SWITCH_QEMU_CORE
 
 /* Additional BQL functions */
 void qemu_cond_wait_bql(QemuCond *cond)
@@ -50,3 +54,5 @@ void bql_lock_impl(void)
 void bql_unlock(void)
 {
 }
+
+#endif /* !SWITCH_QEMU_CORE */

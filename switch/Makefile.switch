@@ -202,6 +202,7 @@ UTIL_SRCS := \
     util/qemu-timer.c \
     util/qemu-timer-common.c \
     util/aio-posix.c \
+    util/fdmon-poll.c \
     util/async.c \
     util/block-helpers.c \
     util/aiocb.c \
@@ -601,7 +602,8 @@ ALL_SRCS := \
     $(TCG_SRCS) \
     $(MEMORY_SRCS) \
     $(TARGET_I386_SRCS) \
-    $(TRACE_SRCS)
+    $(TRACE_SRCS) \
+    $(SYSTEM_SRCS)
 endif
 
 # Minimal bootstrap build: only the Switch entry point (Phase 1)

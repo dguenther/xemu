@@ -114,3 +114,87 @@ void qdev_init_gpio_out_named(DeviceState *dev, qemu_irq *pins, const char *name
 {
     (void)dev; (void)pins; (void)name; (void)n;
 }
+
+/*
+ * QemuOpts definitions for system/vl.c and other QEMU components.
+ * These are normally provided by various source files (qdev-monitor.c,
+ * net/net.c, monitor/monitor.c, hw/core/numa.c), but those files have
+ * complex dependencies that aren't available in the Switch build.
+ * 
+ * NOTE: These must be actual struct definitions with .name fields,
+ * NOT NULL pointers, because find_list() in qemu-config.c iterates
+ * through vm_config_groups[] and accesses ->name on each entry.
+ * 
+ * These are NOT guarded by SWITCH_QEMU_CORE because the source files
+ * that normally provide them (qdev-monitor.c, etc.) are not in SYSTEM_SRCS.
+ */
+
+#include "qemu/queue.h"
+
+QemuOptsList qemu_device_opts = {
+    .name = "device",
+    .implied_opt_name = "driver",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_device_opts.head),
+    .desc = {
+        { /* end of list */ }
+    },
+};
+
+QemuOptsList qemu_global_opts = {
+    .name = "global",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_global_opts.head),
+    .desc = {
+        { /* end of list */ }
+    },
+};
+
+QemuOptsList qemu_netdev_opts = {
+    .name = "netdev",
+    .implied_opt_name = "type",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_netdev_opts.head),
+    .desc = {
+        { /* end of list */ }
+    },
+};
+
+QemuOptsList qemu_nic_opts = {
+    .name = "nic",
+    .implied_opt_name = "type",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_nic_opts.head),
+    .desc = {
+        { /* end of list */ }
+    },
+};
+
+QemuOptsList qemu_net_opts = {
+    .name = "net",
+    .implied_opt_name = "type",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_net_opts.head),
+    .desc = {
+        { /* end of list */ }
+    },
+};
+
+QemuOptsList qemu_mon_opts = {
+    .name = "mon",
+    .implied_opt_name = "chardev",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_mon_opts.head),
+    .desc = {
+        { /* end of list */ }
+    },
+};
+
+QemuOptsList qemu_numa_opts = {
+    .name = "numa",
+    .implied_opt_name = "type",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_numa_opts.head),
+    .desc = {
+        { /* end of list */ }
+    },
+};
+
+bool qemu_global_option(const char *name)
+{
+    (void)name;
+    return false;
+}

@@ -48,7 +48,13 @@ bool qemu_display_find_default(DisplayOptions *opts)
     return false;
 }
 
+/*
+ * display_opengl is only stubbed when NOT building the QEMU core.
+ * When SWITCH_QEMU_CORE is defined, system/globals.c provides the real definition.
+ */
+#ifndef SWITCH_QEMU_CORE
 bool display_opengl = false;
+#endif /* !SWITCH_QEMU_CORE */
 
 void qemu_display_early_init(DisplayOptions *opts)
 {
