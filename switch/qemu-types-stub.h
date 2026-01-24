@@ -16,13 +16,29 @@
 #include <stdio.h>
 #include <unistd.h>  /* For access() */
 
+/*
+ * Only include real QEMU headers from C code.
+ * C++ code should use the stub types below to avoid pulling in
+ * C-specific constructs from QEMU headers.
+ */
+#if defined(SWITCH_QEMU_CORE) && !defined(__cplusplus)
+#include "qapi/error.h"
+#include "qemu/typedefs.h"
+#include "block/snapshot.h"
+#include "sysemu/runstate.h"
+#include "ui/console.h"
+#include "hw/xbox/nv2a/nv2a.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*
  * Error type stub - matches QEMU's qapi/error.h
+ * Provide stub for C++ even when QEMU core is enabled
  */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
 typedef struct Error Error;
 
 /* Error handling stubs */
@@ -33,10 +49,12 @@ static inline const char *error_get_pretty(const Error *err) { (void)err; return
 #define error_setg(errp, fmt, ...) do { (void)(errp); } while(0)
 #define error_report(fmt, ...) do { } while(0)
 static inline void error_report_err(Error *err) { (void)err; }
+#endif
 
 /*
  * QEMUSnapshotInfo stub - matches block/snapshot.h
  */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
 #define SNAPSHOT_NAME_SIZE 256
 typedef struct QEMUSnapshotInfo {
     char id_str[128];
@@ -47,15 +65,19 @@ typedef struct QEMUSnapshotInfo {
     uint64_t vm_clock_nsec;
     uint64_t icount;
 } QEMUSnapshotInfo;
+#endif
 
 /*
  * QEMUFile stub - for save state operations
  */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
 typedef struct QEMUFile QEMUFile;
+#endif
 
 /*
  * RunState enum stub
  */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
 typedef enum RunState {
     RUN_STATE_DEBUG,
     RUN_STATE_INMIGRATE,
@@ -75,19 +97,23 @@ typedef enum RunState {
     RUN_STATE_COLO,
     RUN_STATE__MAX,
 } RunState;
+#endif
 
 /*
  * VM control function stubs
  */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
 static inline bool runstate_is_running(void) { return false; }
 static inline int vm_stop(RunState state) { (void)state; return 0; }
 static inline void vm_start(void) { }
 static inline RunState runstate_get(void) { return RUN_STATE_PAUSED; }
+#endif
 
 /*
  * File operations stub
  * Guard to prevent redefinition if qemu/osdep.h is also included
  */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
 #ifndef qemu_fopen
 static inline FILE *qemu_fopen(const char *path, const char *mode) {
     return fopen(path, mode);
@@ -98,6 +124,7 @@ static inline FILE *qemu_fopen(const char *path, const char *mode) {
 static inline int qemu_access(const char *path, int mode) {
     return access(path, mode);
 }
+#endif
 #endif
 
 /* F_OK may not be defined */
@@ -139,6 +166,7 @@ static inline bool g_regex_match(GRegex *regex, const char *string,
 /*
  * QemuConsole stub
  */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
 typedef struct QemuConsole QemuConsole;
 typedef struct DisplaySurface DisplaySurface;
 
@@ -169,14 +197,17 @@ static inline int surface_height(DisplaySurface *s) {
     (void)s;
     return 480;
 }
+#endif
 
 /*
  * NV2A GPU stubs
  */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
 static inline int nv2a_get_surface_scale_factor(void) { return 1; }
 static inline void nv2a_set_surface_scale_factor(int factor) { (void)factor; }
 static inline const uint8_t *nv2a_get_dac_palette(void) { return NULL; }
 static inline bool nv2a_get_screen_off(void) { return false; }
+#endif
 
 /*
  * QTAILQ stub macros
@@ -258,12 +289,20 @@ static inline void xemu_net_disable(void) { }
 
 /*
  * Disc/system control stubs
+ * Only provide stubs when QEMU core is not available.
+ * When QEMU core is enabled, these are provided by ui/xemu.c
  */
+#if !defined(SWITCH_QEMU_CORE)
 static inline void xemu_eject_disc(Error **err) { (void)err; }
 static inline void xemu_load_disc(const char *path, Error **err) {
     (void)path; (void)err;
 }
+#endif
 
+/*
+ * ShutdownCause enum - provide for C++ even when QEMU core is enabled
+ */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
 typedef enum ShutdownCause {
     SHUTDOWN_CAUSE_NONE,
     SHUTDOWN_CAUSE_HOST_ERROR,
@@ -276,9 +315,17 @@ typedef enum ShutdownCause {
     SHUTDOWN_CAUSE_GUEST_PANIC,
     SHUTDOWN_CAUSE__MAX,
 } ShutdownCause;
+#endif
 
+#if !defined(SWITCH_QEMU_CORE)
+/* Stub implementations when QEMU core is not available */
 static inline void qemu_system_reset_request(ShutdownCause cause) { (void)cause; }
 static inline void qemu_system_shutdown_request(ShutdownCause cause) { (void)cause; }
+#elif defined(__cplusplus)
+/* C++ declarations when QEMU core is available - implementations in C code */
+void qemu_system_reset_request(ShutdownCause cause);
+void qemu_system_shutdown_request(ShutdownCause cause);
+#endif
 
 /*
  * FATX image stub
@@ -288,6 +335,19 @@ static inline bool create_fatx_image(const char *path, size_t size) {
     (void)size;
     return false;
 }
+
+/*
+ * QObject types - needed by QAPI generated headers
+ */
+#if !defined(SWITCH_QEMU_CORE) || defined(__cplusplus)
+typedef struct QObject QObject;
+typedef struct QNull QNull;
+typedef struct QNum QNum;
+typedef struct QString QString;
+typedef struct QDict QDict;
+typedef struct QList QList;
+typedef struct QBool QBool;
+#endif
 
 #ifdef __cplusplus
 }

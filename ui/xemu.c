@@ -60,6 +60,15 @@
 #include <stb_image.h>
 #include <locale.h>
 
+#ifdef CONFIG_SWITCH
+#ifndef GL_BGRA_EXT
+#define GL_BGRA_EXT GL_BGRA
+#endif
+#ifndef GL_UNPACK_ROW_LENGTH_EXT
+#define GL_UNPACK_ROW_LENGTH_EXT GL_UNPACK_ROW_LENGTH
+#endif
+#endif
+
 #ifdef _WIN32
 #include "nvapi.h"
 // Provide hint to prefer high-performance graphics for hybrid systems
@@ -116,6 +125,19 @@ static SDL_Cursor *guest_sprite;
 static Notifier mouse_mode_notifier;
 static SDL_Window *m_window;
 static SDL_GLContext m_context;
+
+#ifdef CONFIG_SWITCH
+static SDL_Window *g_external_window;
+static SDL_GLContext g_external_gl_context;
+static bool g_switch_external_ui;
+
+void xemu_switch_set_sdl_window(SDL_Window *window, SDL_GLContext context)
+{
+    g_external_window = window;
+    g_external_gl_context = context;
+    g_switch_external_ui = (window != NULL && context != NULL);
+}
+#endif
 // struct decal_shader *blit;
 
 static QemuSemaphore display_init_sem;
@@ -682,6 +704,21 @@ static const DisplayChangeListenerOps dcl_gl_ops = {
 
 static void sdl2_display_very_early_init(DisplayOptions *o)
 {
+#ifdef CONFIG_SWITCH
+    (void)o;
+    if (!g_external_window || !g_external_gl_context) {
+        fprintf(stderr, "Switch: SDL window/context not set before display init\n");
+        exit(1);
+    }
+
+    m_window = g_external_window;
+    m_context = g_external_gl_context;
+
+    SDL_GL_MakeCurrent(m_window, m_context);
+    nv2a_context_init();
+    SDL_GL_MakeCurrent(NULL, NULL);
+    return;
+#else
 #ifdef __linux__
     /* on Linux, SDL may use fbcon|directfb|svgalib when run without
      * accessible $DISPLAY to open X11 window.  This is often the case
@@ -828,10 +865,22 @@ static void sdl2_display_very_early_init(DisplayOptions *o)
     SDL_GL_MakeCurrent(NULL, NULL);
 
     // FIXME: atexit(sdl_cleanup);
+#endif
 }
 
 static void sdl2_display_early_init(DisplayOptions *o)
 {
+#ifdef CONFIG_SWITCH
+    assert(o->type == DISPLAY_TYPE_XEMU);
+    display_opengl = 1;
+
+    SDL_GL_MakeCurrent(m_window, m_context);
+    if (!g_switch_external_ui) {
+        SDL_GL_SetSwapInterval(g_config.display.window.vsync ? 1 : 0);
+        xemu_hud_init(m_window, m_context);
+    }
+    return;
+#else
     assert(o->type == DISPLAY_TYPE_XEMU);
     display_opengl = 1;
 
@@ -839,6 +888,7 @@ static void sdl2_display_early_init(DisplayOptions *o)
     SDL_GL_SetSwapInterval(g_config.display.window.vsync ? 1 : 0);
     xemu_hud_init(m_window, m_context);
     // blit = create_decal_shader(SHADER_TYPE_BLIT_GAMMA);
+#endif
 }
 
 static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
@@ -1313,6 +1363,7 @@ static void setup_nvidia_profile(void)
 }
 #endif
 
+#ifndef CONFIG_SWITCH
 int main(int argc, char **argv)
 {
     QemuThread thread;
@@ -1415,6 +1466,7 @@ int main(int argc, char **argv)
 
     // rcu_unregister_thread();
 }
+#endif
 
 void xemu_eject_disc(Error **errp)
 {

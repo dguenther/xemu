@@ -16,6 +16,7 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <stdarg.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -25,6 +26,8 @@
 #ifdef __SWITCH__
 #include <switch.h>
 #endif
+
+typedef struct Error Error;
 
 /*
  * Thread ID handling
@@ -48,7 +51,7 @@ int qemu_daemon(int nochdir, int noclose)
 /*
  * PID file - not needed on Switch
  */
-bool qemu_write_pidfile(const char *path, void **errp)
+bool qemu_write_pidfile(const char *path, Error **errp)
 {
     (void)path;
     (void)errp;
@@ -105,6 +108,23 @@ void *qemu_vmalloc(size_t size)
 void qemu_vfree(void *ptr)
 {
     free(ptr);
+}
+
+void *qemu_try_memalign(size_t alignment, size_t size)
+{
+    void *ptr = NULL;
+
+    if (alignment < sizeof(void *)) {
+        alignment = sizeof(void *);
+    }
+    if (size == 0) {
+        size = 1;
+    }
+
+    if (posix_memalign(&ptr, alignment, size) != 0) {
+        return NULL;
+    }
+    return ptr;
 }
 
 /*
@@ -225,13 +245,134 @@ int socket_set_nodelay(int fd)
 /*
  * File creation with permissions
  */
-int qemu_create(const char *path, int flags, mode_t mode, void **errp)
+int qemu_create(const char *path, int flags, mode_t mode, Error **errp)
 {
     int fd = open(path, flags | O_CREAT, mode);
     if (fd < 0 && errp) {
         /* Error handling would go here */
     }
     return fd;
+}
+
+int qemu_open(const char *name, int flags, Error **errp)
+{
+    int fd = open(name, flags, 0666);
+    if (fd < 0 && errp) {
+        /* Error handling would go here */
+    }
+    return fd;
+}
+
+int qemu_open_old(const char *name, int flags, ...)
+{
+    int fd;
+    if (flags & O_CREAT) {
+        va_list ap;
+        mode_t mode;
+        va_start(ap, flags);
+        mode = (mode_t)va_arg(ap, int);
+        va_end(ap);
+        fd = open(name, flags, mode);
+    } else {
+        fd = open(name, flags);
+    }
+    return fd;
+}
+
+int qemu_close(int fd)
+{
+    return close(fd);
+}
+
+int qemu_unlink(const char *name)
+{
+    return unlink(name);
+}
+
+int qemu_mkdir(const char *path)
+{
+    return mkdir(path, 0755);
+}
+
+int qemu_dup(int fd)
+{
+    return dup(fd);
+}
+
+int qemu_dup_flags(int fd, int flags)
+{
+    int newfd = dup(fd);
+    if (newfd < 0) {
+        return newfd;
+    }
+    if (flags & O_CLOEXEC) {
+        qemu_set_cloexec(newfd);
+    }
+    return newfd;
+}
+
+int qemu_lock_fd(int fd, int64_t start, int64_t len, bool exclusive)
+{
+    (void)fd;
+    (void)start;
+    (void)len;
+    (void)exclusive;
+    return 0;
+}
+
+int qemu_unlock_fd(int fd, int64_t start, int64_t len)
+{
+    (void)fd;
+    (void)start;
+    (void)len;
+    return 0;
+}
+
+int qemu_lock_fd_test(int fd, int64_t start, int64_t len, bool exclusive)
+{
+    (void)fd;
+    (void)start;
+    (void)len;
+    (void)exclusive;
+    return 0;
+}
+
+bool qemu_has_ofd_lock(void)
+{
+    return false;
+}
+
+int qemu_fdatasync(int fd)
+{
+    return fsync(fd);
+}
+
+__attribute__((weak)) ssize_t pread(int fd, void *buf, size_t count, off_t offset)
+{
+    off_t cur = lseek(fd, 0, SEEK_CUR);
+    if (cur == (off_t)-1) {
+        return -1;
+    }
+    if (lseek(fd, offset, SEEK_SET) == (off_t)-1) {
+        return -1;
+    }
+    ssize_t ret = read(fd, buf, count);
+    lseek(fd, cur, SEEK_SET);
+    return ret;
+}
+
+__attribute__((weak)) ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset)
+{
+    off_t cur = lseek(fd, 0, SEEK_CUR);
+    if (cur == (off_t)-1) {
+        return -1;
+    }
+    if (lseek(fd, offset, SEEK_SET) == (off_t)-1) {
+        return -1;
+    }
+    ssize_t ret = write(fd, buf, count);
+    lseek(fd, cur, SEEK_SET);
+    return ret;
 }
 
 /*

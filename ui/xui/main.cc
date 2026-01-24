@@ -21,7 +21,6 @@
 // OpenGL loader abstraction: use glad on Switch, epoxy elsewhere
 #ifdef CONFIG_SWITCH
 #include <glad/glad.h>
-#include "egl-switch.h"
 #else
 #include <epoxy/gl.h>
 #endif
@@ -168,15 +167,9 @@ void xemu_hud_init(SDL_Window* window, void* sdl_gl_context)
 
     // Setup Platform/Renderer bindings
 #ifdef CONFIG_SWITCH
-    // On Switch, we skip SDL2 backend since we use EGL directly without SDL window
-    // We only use the OpenGL3 backend and manually handle display size/input
-    (void)window;
-    (void)sdl_gl_context;
+    ImGui_ImplSDL2_InitForOpenGL(window, sdl_gl_context);
     ImGui_ImplOpenGL3_Init("#version 430");
-    g_sdl_window = NULL;
-    // Set initial display size
-    io.DisplaySize = ImVec2((float)switch_egl_get_width(), (float)switch_egl_get_height());
-    io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+    g_sdl_window = window;
 #else
     ImGui_ImplSDL2_InitForOpenGL(window, sdl_gl_context);
     ImGui_ImplOpenGL3_Init("#version 150");
@@ -205,9 +198,7 @@ void xemu_hud_init(SDL_Window* window, void* sdl_gl_context)
 void xemu_hud_cleanup(void)
 {
     ImGui_ImplOpenGL3_Shutdown();
-#ifndef CONFIG_SWITCH
     ImGui_ImplSDL2_Shutdown();
-#endif
     ImGui::DestroyContext();
 }
 
@@ -218,11 +209,7 @@ void xemu_hud_process_sdl_events(SDL_Event *event)
         return;
     }
 
-#ifndef CONFIG_SWITCH
     ImGui_ImplSDL2_ProcessEvent(event);
-#else
-    (void)event;  // On Switch, we handle input differently
-#endif
 }
 
 #ifdef CONFIG_SWITCH
@@ -374,7 +361,10 @@ void xemu_hud_render(void)
     // Clear the screen with a visible color on Switch
     glClearColor(0.1f, 0.1f, 0.2f, 1.0f);  // Dark blue-gray
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, switch_egl_get_width(), switch_egl_get_height());
+    int gl_w = 0;
+    int gl_h = 0;
+    SDL_GL_GetDrawableSize(g_sdl_window, &gl_w, &gl_h);
+    glViewport(0, 0, gl_w, gl_h);
 #endif
 
     ImGuiIO& io = ImGui::GetIO();
@@ -394,12 +384,7 @@ void xemu_hud_render(void)
     RENDER_DBG("framebuffer check");
     if (!first_boot_window.is_open) {
         int ww, wh;
-#ifdef CONFIG_SWITCH
-        ww = switch_egl_get_width();
-        wh = switch_egl_get_height();
-#else
         SDL_GL_GetDrawableSize(g_sdl_window, &ww, &wh);
-#endif
         RENDER_DBG("RenderFramebuffer");
         RenderFramebuffer(g_tex, ww, wh, g_flip_req);
     }
@@ -407,20 +392,7 @@ void xemu_hud_render(void)
     RENDER_DBG("ImGui_ImplOpenGL3_NewFrame");
     ImGui_ImplOpenGL3_NewFrame();
     io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
-#ifdef CONFIG_SWITCH
-    // On Switch, we skip SDL2 backend and manually set up ImGui frame
-    // Set display size from EGL
-    io.DisplaySize = ImVec2((float)switch_egl_get_width(), (float)switch_egl_get_height());
-    io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
-    // Set delta time (ImGui needs this for animations)
-    static uint32_t last_time = 0;
-    uint32_t current_time = SDL_GetTicks();
-    io.DeltaTime = last_time > 0 ? (float)(current_time - last_time) / 1000.0f : 1.0f / 60.0f;
-    if (io.DeltaTime <= 0.0f) io.DeltaTime = 1.0f / 60.0f;
-    last_time = current_time;
-#else
     ImGui_ImplSDL2_NewFrame();
-#endif
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
     RENDER_DBG("input update");

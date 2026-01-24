@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <setjmp.h>
 #include <sys/types.h>
+#include <float.h>
 
 /*
  * sigjmp_buf - on Switch we don't have signal masks, so just alias to jmp_buf
@@ -266,6 +267,7 @@ static inline ssize_t getrandom(void *buf, size_t buflen, unsigned int flags)
 /*
  * Copy file range - Linux-specific
  */
+#ifndef SWITCH_QEMU_CORE
 static inline ssize_t copy_file_range(int fd_in, off_t *off_in,
                                       int fd_out, off_t *off_out,
                                       size_t len, unsigned int flags)
@@ -275,6 +277,20 @@ static inline ssize_t copy_file_range(int fd_in, off_t *off_in,
     errno = ENOSYS;
     return -1;
 }
+#endif
+
+/*
+ * ioctl - not available on Switch
+ */
+#ifdef __SWITCH__
+static inline int ioctl(int fd, unsigned long request, ...)
+{
+    (void)fd;
+    (void)request;
+    errno = ENOSYS;
+    return -1;
+}
+#endif
 
 /*
  * sendfile - Linux/BSD specific
@@ -319,8 +335,53 @@ static inline time_t timegm(struct tm *tm)
 }
 #endif
 
+/*
+ * getpagesize - POSIX function
+ * Declared but not implemented in newlib, provide stub
+ */
+#ifndef getpagesize
+#define getpagesize() 4096
+#endif
+
+/*
+ * pthread_kill - send signal to thread (not supported on Switch)
+ * Declared but may not be fully implemented in newlib
+ */
+#ifndef __SWITCH_PTHREAD_KILL_STUB
+#define __SWITCH_PTHREAD_KILL_STUB
+#include <signal.h>
+#include <pthread.h>
+#ifdef __SWITCH__
+#define pthread_kill(thread, sig) 0
+#endif
+#endif
+
 #ifdef __cplusplus
 }
+#endif
+
+/*
+ * QEMU macros needed for C++ compilation when including QEMU headers
+ * These are normally defined in qemu/compiler.h but that file has C-specific constructs
+ */
+#ifndef unlikely
+#define unlikely(x)   __builtin_expect(!!(x), 0)
+#endif
+
+#ifndef likely
+#define likely(x)     __builtin_expect(!!(x), 1)
+#endif
+
+#ifndef DIV_ROUND_UP
+#define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+#endif
+
+/*
+ * coroutine_fn - marks functions that can be called from coroutines
+ * On Switch, we don't use coroutines, so this is a no-op
+ */
+#ifndef coroutine_fn
+#define coroutine_fn
 #endif
 
 #endif /* SWITCH_PLATFORM_STUBS_H */

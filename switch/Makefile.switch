@@ -51,6 +51,11 @@ BUILD       := build-switch
 OUTDIR      := $(TOPDIR)/dist-switch
 SOURCES     := switch
 INCLUDES    := switch include
+SWITCH_FULL ?= 1
+
+ifeq ($(SWITCH_FULL),1)
+DEFINES += -DSWITCH_QEMU_CORE=1
+endif
 
 #---------------------------------------------------------------------------------
 # Compiler flags
@@ -63,6 +68,8 @@ CFLAGS := -g -Wall -O2 -ffunction-sections \
 CFLAGS += -DXBOX=1 \
           -DCONFIG_SWITCH=1 \
           -D__SWITCH__ \
+          -DCONFIG_DEVICES=\"i386-softmmu-config-devices.h\" \
+          -DTARGET_BIG_ENDIAN=0 \
           -DIMGUI_IMPL_OPENGL_LOADER_CUSTOM=1 \
           -include glad/glad.h \
           -D__BYTE_ORDER=1234 \
@@ -85,7 +92,7 @@ LDFLAGS := -specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) \
 # Libraries
 #---------------------------------------------------------------------------------
 # Note: Order matters for linking. glad must come before EGL/GL libs.
-LIBS_FULL := -lglad -lSDL2 -lEGL -lglapi -ldrm_nouveau \
+LIBS_FULL := -lglad -lEGL -lSDL2 -lglapi -ldrm_nouveau \
              -lnx -lm -lpthread
 LIBS_MINIMAL := -lnx -lm
 LIBS := $(LIBS_FULL)
@@ -110,7 +117,6 @@ INCLUDE := -I$(BUILD) \
            -I$(NATIVE_BUILD) \
            -I$(NATIVE_BUILD)/qapi \
            -I$(TOPDIR)/target/i386 \
-           -I$(TOPDIR)/tcg/i386 \
            -I$(TOPDIR)/tcg/aarch64 \
            -I$(TOPDIR)/tcg \
            -I$(TOPDIR)/accel/tcg \
@@ -125,6 +131,7 @@ INCLUDE := -I$(BUILD) \
            -I$(TOPDIR)/subprojects/implot \
            -I$(TOPDIR)/ui/thirdparty/stb_image \
            -I$(TOPDIR)/ui/thirdparty/fa \
+           -I$(TOPDIR)/hw/xbox/nv2a/pgraph/thirdparty/gloffscreen \
            -I$(TOPDIR)/subprojects/tomlplusplus/include \
            -I$(TOPDIR)/subprojects/genconfig \
            -I$(TOPDIR)/subprojects/json-3.2.0/include \
@@ -141,8 +148,7 @@ SWITCH_SRCS := \
     switch/main-switch.c \
     switch/oslib-switch.c \
     switch/glib-compat.c \
-    switch/qemu-stubs.c \
-    switch/egl-switch.c \
+    $(filter-out switch/qemu-stubs/qemu-opts.c, $(wildcard switch/qemu-stubs/*.c)) \
     switch/noc_file_dialog_switch.c \
     switch/stb_image_impl.c \
     switch/cpp-stubs.cc \
@@ -158,6 +164,7 @@ UTIL_SRCS := \
     util/qemu-print.c \
     util/bitmap.c \
     util/bitops.c \
+    util/bufferiszero.c \
     util/host-utils.c \
     util/log.c \
     util/crc32c.c \
@@ -168,6 +175,7 @@ UTIL_SRCS := \
     util/int128.c \
     util/notify.c \
     util/id.c \
+    util/iov.c \
     util/path.c \
     util/envlist.c \
     util/module.c \
@@ -178,6 +186,7 @@ UTIL_SRCS := \
     util/interval-tree.c \
     util/lockcnt.c \
     util/rcu.c \
+    util/qemu-coroutine-lock.c \
     util/qht.c \
     util/qdist.c \
     util/qsp.c \
@@ -187,20 +196,76 @@ UTIL_SRCS := \
     util/fast-hash.c \
     util/qemu-thread-posix.c \
     util/thread-pool.c \
-    util/event_notifier-posix.c
+    util/event_notifier-posix.c \
+    util/qtree.c \
+    util/memfd.c \
+    util/qemu-timer.c \
+    util/qemu-timer-common.c \
+    util/aio-posix.c \
+    util/async.c \
+    util/block-helpers.c \
+    util/aiocb.c \
+    util/throttle.c
+
+# Character device backends
+# Minimal set for Xbox emulation (serial devices use "null" backend)
+# Excluded files (dependencies on qio_*, termios, ioctl, etc.):
+#   char-serial.c, char-stdio.c, char-fd.c, char-file.c (needs char-fd),
+#   char-parallel.c, char-pty.c, char-socket.c, char-udp.c, char-pipe.c
+CHARDEV_SRCS := \
+    chardev/char.c \
+    chardev/char-fe.c \
+    chardev/char-io.c \
+    chardev/char-mux.c \
+    chardev/char-null.c \
+    chardev/char-ringbuf.c \
+    chardev/char-hmp-cmds.c
+
+# Acceleration helpers
+ACCEL_SRCS := \
+    accel/accel-target.c \
+    accel/accel-system.c
+
+# CPU core helpers
+CPU_SRCS := \
+    cpu-common.c \
+    cpu-target.c
 
 # QOM (QEMU Object Model) sources
 QOM_SRCS := \
     qom/object.c \
     qom/container.c \
     qom/qom-hmp-cmds.c \
+    qom/qom-qobject.c \
     qom/qom-qmp-cmds.c \
     qom/object_interfaces.c
 
 # QAPI sources (will need generation)
 QAPI_SRCS := \
-    qapi/qapi-builtin-visit.c \
-    qapi/qapi-builtin-types.c \
+    build/qapi/qapi-builtin-visit.c \
+    build/qapi/qapi-builtin-types.c \
+    build/qapi/qapi-commands-block.c \
+    build/qapi/qapi-types-common.c \
+    build/qapi/qapi-types-block-core.c \
+    build/qapi/qapi-types-block.c \
+    build/qapi/qapi-types-ui.c \
+    build/qapi/qapi-types-audio.c \
+    build/qapi/qapi-types-char.c \
+    build/qapi/qapi-types-run-state.c \
+    build/qapi/qapi-types-virtio.c \
+    build/qapi/qapi-types-machine-common.c \
+    build/qapi/qapi-types-migration.c \
+    build/qapi/qapi-types-machine.c \
+    build/qapi/qapi-visit-ui.c \
+    build/qapi/qapi-visit-audio.c \
+    build/qapi/qapi-visit-block.c \
+    build/qapi/qapi-visit-virtio.c \
+    build/qapi/qapi-visit-machine.c \
+    build/qapi/qapi-events-block.c \
+    build/qapi/qapi-events-block-core.c \
+    build/qapi/qapi-events-run-state.c \
+    build/trace/trace-block.c \
+    build/trace/trace-util.c \
     qapi/qmp-registry.c \
     qapi/string-input-visitor.c \
     qapi/string-output-visitor.c \
@@ -208,6 +273,7 @@ QAPI_SRCS := \
     qapi/qobject-input-visitor.c \
     qapi/qobject-output-visitor.c \
     qapi/qapi-visit-core.c \
+    qapi/qapi-util.c \
     qapi/qapi-dealloc-visitor.c \
     qapi/qapi-forward-visitor.c \
     qapi/qapi-clone-visitor.c
@@ -221,6 +287,7 @@ QOBJECT_SRCS := \
     qobject/qlist.c \
     qobject/qbool.c \
     qobject/qlit.c \
+    qobject/block-qdict.c \
     qobject/qjson.c \
     qobject/json-lexer.c \
     qobject/json-parser.c \
@@ -237,9 +304,25 @@ CRYPTO_SRCS := \
 # Block layer sources (minimal for ISO loading)
 BLOCK_SRCS := \
     block.c \
+    block/block-backend.c \
+    blockdev.c \
+    block/throttle-groups.c \
+    block/accounting.c \
+    build/block/block-gen.c \
     block/raw-format.c \
     block/file-posix.c \
     block/qcow2.c \
+    block/qcow2-bitmap.c \
+    block/qcow2-cache.c \
+    block/qcow2-cluster.c \
+    block/qcow2-refcount.c \
+    block/qcow2-snapshot.c \
+    block/qcow2-threads.c \
+    block/graph-lock.c \
+    block/dirty-bitmap.c \
+    block/write-threshold.c \
+    block/aio_task.c \
+    block/commit.c \
     block/io.c \
     blockjob.c
 
@@ -247,58 +330,116 @@ BLOCK_SRCS := \
 HW_BASE_SRCS := \
     hw/core/qdev.c \
     hw/core/qdev-properties.c \
+    hw/core/qdev-properties-system.c \
     hw/core/bus.c \
+    hw/core/cpu-common.c \
+    hw/core/hotplug.c \
     hw/core/resettable.c \
+    hw/core/reset.c \
+    hw/core/resetcontainer.c \
     hw/core/clock.c \
     hw/core/irq.c \
     hw/core/sysbus.c \
-    hw/core/machine.c
+    hw/core/machine.c \
+    hw/core/vmstate-if.c \
+    hw/acpi/core.c \
+    hw/acpi/acpi_interface.c \
+    hw/i2c/core.c \
+    hw/i2c/smbus_slave.c \
+    hw/i2c/smbus_master.c \
+    hw/i386/pc.c \
+    hw/i386/x86-cpu.c \
+    hw/intc/i8259.c \
+    hw/intc/i8259_common.c \
+    hw/intc/intc.c \
+    hw/timer/i8254.c \
+    hw/timer/i8254_common.c \
+    switch/x86-machine-stub.c \
+    hw/isa/isa-bus.c \
+    switch/isa-pcspk-stub.c \
+    hw/audio/soundhw.c \
+    hw/smbios/smbios-stub.c \
+    hw/rtc/mc146818rtc.c \
+    scsi/pr-manager-stub.c
+
+# IDE controller sources
+IDE_SRCS := \
+    hw/ide/core.c \
+    hw/ide/atapi.c \
+    hw/ide/pci.c \
+    hw/ide/piix.c \
+    hw/ide/ide-bus.c \
+    hw/ide/ide-dev.c \
+    hw/ide/ioport.c
+
+# PCI core sources
+PCI_SRCS := \
+    hw/pci/pci.c \
+    hw/pci/pci_host.c \
+    hw/pci/pci_bridge.c
+
+# Semihosting stubs
+SEMI_SRCS := \
+    semihosting/stubs-system.c
 
 # Xbox HW sources
 XBOX_HW_SRCS := \
     hw/xbox/xbox.c \
     hw/xbox/xbox_pci.c \
-    hw/xbox/smbus.c \
     hw/xbox/smbus_xbox_smc.c \
     hw/xbox/amd_smbus.c \
-    hw/xbox/nvnet.c \
-    hw/xbox/nvnet_mii.c \
+    hw/xbox/mcpx/nvnet/nvnet.c \
     hw/xbox/acpi_xbox.c \
     hw/xbox/lpc47m157.c \
-    hw/xbox/chihiro.c \
-    hw/xbox/chihiro-usb.c \
-    hw/xbox/mcpx/apu.c \
-    hw/xbox/mcpx/dsp/dsp.c \
-    hw/xbox/mcpx/dsp/dsp_cpu.c \
-    hw/xbox/mcpx/dsp/dsp_state.c \
-    hw/xbox/mcpx/dsp/dsp_disasm.c \
+    hw/xbox/mcpx/apu/apu.c \
+    hw/xbox/mcpx/apu/debug.c \
+    hw/xbox/mcpx/apu/dsp/debug.c \
+    hw/xbox/mcpx/apu/dsp/dsp.c \
+    hw/xbox/mcpx/apu/dsp/dsp_cpu.c \
+    hw/xbox/mcpx/apu/dsp/dsp_dma.c \
+    hw/xbox/mcpx/apu/dsp/gp_ep.c \
+    hw/xbox/mcpx/apu/vp/vp.c \
     hw/xbox/nv2a/nv2a.c \
     hw/xbox/nv2a/pbus.c \
-    hw/xbox/nv2a/pcounter.c \
     hw/xbox/nv2a/pcrtc.c \
     hw/xbox/nv2a/pfb.c \
     hw/xbox/nv2a/pfifo.c \
     hw/xbox/nv2a/pmc.c \
     hw/xbox/nv2a/pramdac.c \
-    hw/xbox/nv2a/pramin.c \
-    hw/xbox/nv2a/prma.c \
     hw/xbox/nv2a/prmcio.c \
     hw/xbox/nv2a/prmdio.c \
-    hw/xbox/nv2a/prmfb.c \
     hw/xbox/nv2a/prmvio.c \
     hw/xbox/nv2a/ptimer.c \
     hw/xbox/nv2a/pvideo.c \
+    hw/xbox/nv2a/stubs.c \
     hw/xbox/nv2a/user.c \
-    hw/xbox/nv2a/debug.c \
     hw/xbox/nv2a/pgraph/pgraph.c \
-    hw/xbox/nv2a/pgraph/surface.c \
+    hw/xbox/nv2a/pgraph/profile.c \
+    hw/xbox/nv2a/pgraph/rdi.c \
+    hw/xbox/nv2a/pgraph/s3tc.c \
+    hw/xbox/nv2a/pgraph/swizzle.c \
     hw/xbox/nv2a/pgraph/texture.c \
     hw/xbox/nv2a/pgraph/vertex.c \
-    hw/xbox/nv2a/pgraph/shaders.c \
-    hw/xbox/nv2a/pgraph/swizzle.c \
     hw/xbox/nv2a/pgraph/gl/display.c \
     hw/xbox/nv2a/pgraph/gl/renderer.c \
-    hw/xbox/nv2a/pgraph/gl/shaders.c
+    hw/xbox/nv2a/pgraph/gl/shaders.c \
+    hw/xbox/nv2a/pgraph/gl/surface.c \
+    hw/xbox/nv2a/pgraph/gl/texture.c \
+    hw/xbox/nv2a/pgraph/gl/vertex.c \
+    hw/xbox/nv2a/pgraph/gl/draw.c \
+    hw/xbox/nv2a/pgraph/gl/blit.c \
+    hw/xbox/nv2a/pgraph/gl/debug.c \
+    hw/xbox/nv2a/pgraph/gl/reports.c \
+    hw/xbox/nv2a/pgraph/gl/gpuprops.c \
+    hw/xbox/nv2a/pgraph/glsl/common.c \
+    hw/xbox/nv2a/pgraph/glsl/geom.c \
+    hw/xbox/nv2a/pgraph/glsl/psh.c \
+    hw/xbox/nv2a/pgraph/glsl/shaders.c \
+    hw/xbox/nv2a/pgraph/glsl/vsh.c \
+    hw/xbox/nv2a/pgraph/glsl/vsh-ff.c \
+    hw/xbox/nv2a/pgraph/glsl/vsh-prog.c \
+    hw/xbox/nv2a/pgraph/thirdparty/gloffscreen/common.c \
+    hw/xbox/nv2a/pgraph/thirdparty/gloffscreen/sdl.c
 
 # ImGui sources
 IMGUI_SRCS := \
@@ -320,7 +461,7 @@ IMPLOT_SRCS := \
 FPNG_SRCS := \
     ui/thirdparty/fpng/fpng.cpp
 
-# UI sources (xemu-specific)
+# UI sources (xemu-specific) - HUD-only, no QEMU dependencies
 UI_SRCS := \
     ui/xemu-settings.cc \
     ui/xui/main.cc \
@@ -346,6 +487,10 @@ UI_SRCS := \
     ui/kbd-state.c \
     ui/keymaps.c
 
+# Additional UI sources for full QEMU core build
+UI_SRCS_FULL := \
+    ui/xemu.c
+
 # Audio sources (SDL only)
 AUDIO_SRCS := \
     audio/audio.c \
@@ -357,20 +502,31 @@ AUDIO_SRCS := \
 # TCG sources
 TCG_SRCS := \
     accel/tcg/tcg-all.c \
+    accel/tcg/tcg-accel-ops.c \
+    accel/tcg/tcg-accel-ops-mttcg.c \
+    accel/tcg/tcg-accel-ops-rr.c \
+    accel/tcg/tcg-accel-ops-icount.c \
+    accel/tcg/icount-common.c \
     accel/tcg/cpu-exec.c \
     accel/tcg/cpu-exec-common.c \
     accel/tcg/translate-all.c \
     accel/tcg/translator.c \
     accel/tcg/cputlb.c \
+    accel/tcg/tcg-runtime.c \
+    accel/tcg/tcg-runtime-gvec.c \
     tcg/tcg.c \
     tcg/tcg-op.c \
     tcg/tcg-op-vec.c \
+    tcg/tcg-op-ldst.c \
+    tcg/tcg-op-gvec.c \
+    tcg/tcg-op-fp.c \
     tcg/optimize.c \
     tcg/tcg-common.c \
+    tcg/region.c \
     fpu/softfloat.c
 
-# Memory sources
-MEMORY_SRCS := \
+# system sources
+SYSTEM_SRCS := \
     system/memory.c \
     system/physmem.c \
     system/ioport.c \
@@ -379,16 +535,20 @@ MEMORY_SRCS := \
     system/cpu-timers.c \
     system/vl.c \
     system/runstate.c \
-    system/reset.c \
-    system/qemu-seccomp.c \
+    system/runstate-action.c \
+    system/datadir.c \
     system/globals.c \
     system/watchpoint.c \
+    system/rtc.c \
     system/main.c
+
+# UI stubs for early console init
+UI_SRCS_STUBS := \
+    ui/console-vc-stubs.c
 
 # i386 target sources
 TARGET_I386_SRCS := \
     target/i386/cpu.c \
-    target/i386/cpu-param.c \
     target/i386/gdbstub.c \
     target/i386/helper.c \
     target/i386/xsave_helper.c \
@@ -400,11 +560,23 @@ TARGET_I386_SRCS := \
     target/i386/tcg/mem_helper.c \
     target/i386/tcg/misc_helper.c \
     target/i386/tcg/seg_helper.c \
-    target/i386/tcg/svm_helper.c \
     target/i386/tcg/bpt_helper.c \
-    target/i386/tcg/mpx_helper.c
+    target/i386/tcg/mpx_helper.c \
+    target/i386/tcg/access.c \
+    target/i386/tcg/sysemu/bpt_helper.c \
+    target/i386/tcg/sysemu/excp_helper.c \
+    target/i386/tcg/sysemu/fpu_helper.c \
+    target/i386/tcg/sysemu/misc_helper.c \
+    target/i386/tcg/sysemu/seg_helper.c \
+    target/i386/tcg/sysemu/smm_helper.c \
+    target/i386/tcg/sysemu/svm_helper.c \
+    target/i386/tcg/sysemu/tcg-cpu.c
 
-# Combine all sources for UI-only build (Phase 2: HUD integration)
+
+TRACE_SRCS := \
+    trace/control.c
+
+# Combine sources
 ALL_SRCS := \
     $(SWITCH_SRCS) \
     $(IMGUI_SRCS) \
@@ -412,9 +584,39 @@ ALL_SRCS := \
     $(FPNG_SRCS) \
     $(UI_SRCS)
 
+# Full emulator build (Phase 9: boot to BIOS)
+ifeq ($(SWITCH_FULL),1)
+ALL_SRCS := \
+    $(SWITCH_SRCS) \
+    $(IMGUI_SRCS) \
+    $(IMPLOT_SRCS) \
+    $(FPNG_SRCS) \
+    $(UI_SRCS) \
+    $(UI_SRCS_FULL) \
+    $(UI_SRCS_STUBS) \
+    $(UTIL_SRCS) \
+    $(CHARDEV_SRCS) \
+    $(ACCEL_SRCS) \
+    $(CPU_SRCS) \
+    $(QOM_SRCS) \
+    $(QAPI_SRCS) \
+    $(QOBJECT_SRCS) \
+    $(CRYPTO_SRCS) \
+    $(BLOCK_SRCS) \
+    $(HW_BASE_SRCS) \
+    $(PCI_SRCS) \
+    $(SEMI_SRCS) \
+    $(XBOX_HW_SRCS) \
+    $(AUDIO_SRCS) \
+    $(TCG_SRCS) \
+    $(MEMORY_SRCS) \
+    $(TARGET_I386_SRCS) \
+    $(TRACE_SRCS)
+endif
+
 # Minimal bootstrap build: only the Switch entry point (Phase 1)
 ifeq ($(SWITCH_BOOTSTRAP),1)
-ALL_SRCS := switch/main-switch.c switch/oslib-switch.c switch/glib-compat.c switch/qemu-stubs.c
+ALL_SRCS := switch/main-switch.c switch/oslib-switch.c switch/glib-compat.c $(wildcard switch/qemu-stubs/*.c)
 LIBS := $(LIBS_FULL)
 endif
 
@@ -481,7 +683,7 @@ $(BUILD)/config-target.h: $(TOPDIR)/switch/config-switch.h
 	@echo "#define TARGET_PAGE_BITS 12" >> $@
 	@echo "#define TARGET_PHYS_ADDR_SPACE_BITS 36" >> $@
 	@echo "#define TARGET_VIRT_ADDR_SPACE_BITS 32" >> $@
-	@echo "#undef TARGET_BIG_ENDIAN" >> $@
+	@echo "#define TARGET_BIG_ENDIAN 0" >> $@
 	@echo "#define CONFIG_SOFTMMU 1" >> $@
 	@echo "#include \"$(TOPDIR)/switch/config-switch.h\"" >> $@
 	@echo "#endif" >> $@

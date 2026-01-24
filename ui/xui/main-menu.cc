@@ -46,6 +46,10 @@
 #include "../xemu-os-utils.h"
 #include "../xemu-xbe.h"
 
+#ifdef CONFIG_SWITCH
+extern "C" void switch_request_boot_bios(void);
+#endif
+
 #ifndef CONFIG_SWITCH
 #include "../thirdparty/fatx/fatx.h"
 #endif
@@ -1581,7 +1585,6 @@ void MainMenuSystemView::Draw()
     }
 
 #ifdef CONFIG_SWITCH
-    extern "C" void switch_request_boot_bios(void);
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();

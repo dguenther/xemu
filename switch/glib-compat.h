@@ -114,6 +114,12 @@ typedef guint16 gunichar2;
 #define G_MAXSSIZE  SSIZE_MAX
 #define G_MAXSIZE   SIZE_MAX
 
+#define G_USEC_PER_SEC 1000000
+
+#ifndef ABS
+#define ABS(x) ((x) < 0 ? -(x) : (x))
+#endif
+
 #define G_GINT64_CONSTANT(val)  (val##LL)
 #define G_GUINT64_CONSTANT(val) (val##ULL)
 
@@ -300,6 +306,16 @@ static inline void g_clear_pointer(gpointer *pp, void (*destroy)(gpointer))
     }
 }
 
+#ifndef g_steal_pointer
+#define g_steal_pointer(pp) \
+    (__extension__ ({ \
+        __typeof__(*(pp)) *_pp = (pp); \
+        __typeof__(*_pp) _tmp = *_pp; \
+        *_pp = NULL; \
+        _tmp; \
+    }))
+#endif
+
 #define g_new(struct_type, n_structs) \
     ((struct_type*) g_malloc(sizeof(struct_type) * (gsize)(n_structs)))
 
@@ -448,6 +464,11 @@ gdouble g_ascii_strtod(const gchar *nptr, gchar **endptr);
 gchar* g_ascii_dtostr(gchar *buffer, gint buf_len, gdouble d);
 
 /*
+ * Pattern matching
+ */
+gboolean g_pattern_match_simple(const gchar *pattern, const gchar *string);
+
+/*
  * Error handling
  */
 typedef struct _GError GError;
@@ -579,6 +600,12 @@ GQuark g_quark_try_string(const gchar *string);
 #define g_intern_static_string(string) g_quark_to_string(g_quark_from_static_string(string))
 
 /*
+ * Comparison functions (needed before list types)
+ */
+typedef gint (*GCompareFunc)(gconstpointer a, gconstpointer b);
+typedef gint (*GCompareDataFunc)(gconstpointer a, gconstpointer b, gpointer user_data);
+
+/*
  * GList - doubly linked list
  */
 typedef struct _GList GList;
@@ -603,6 +630,8 @@ GList* g_list_reverse(GList *list);
 GList* g_list_copy(GList *list);
 GList* g_list_copy_deep(GList *list, gpointer (*func)(gconstpointer, gpointer), gpointer user_data);
 void g_list_free(GList *list);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GList, g_list_free)
 void g_list_free_full(GList *list, void (*free_func)(gpointer));
 void g_list_free_1(GList *list);
 guint g_list_length(GList *list);
@@ -640,6 +669,8 @@ GSList* g_slist_copy(GSList *list);
 void g_slist_free(GSList *list);
 void g_slist_free_full(GSList *list, void (*free_func)(gpointer));
 void g_slist_free_1(GSList *list);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GSList, g_slist_free)
 guint g_slist_length(GSList *list);
 GSList* g_slist_nth(GSList *list, guint n);
 gpointer g_slist_nth_data(GSList *list, guint n);
@@ -648,6 +679,7 @@ GSList* g_slist_find_custom(GSList *list, gconstpointer data, gint (*func)(gcons
 gint g_slist_position(GSList *list, GSList *llink);
 gint g_slist_index(GSList *list, gconstpointer data);
 GSList* g_slist_last(GSList *list);
+GSList* g_slist_insert_sorted(GSList *list, gpointer data, GCompareFunc func);
 void g_slist_foreach(GSList *list, void (*func)(gpointer, gpointer), gpointer user_data);
 GSList* g_slist_sort(GSList *list, gint (*compare_func)(gconstpointer, gconstpointer));
 
@@ -692,8 +724,21 @@ typedef void (*GHFunc)(gpointer key, gpointer value, gpointer user_data);
 typedef guint (*GHashFunc)(gconstpointer key);
 typedef gboolean (*GEqualFunc)(gconstpointer a, gconstpointer b);
 typedef void (*GDestroyNotify)(gpointer data);
-typedef gint (*GCompareFunc)(gconstpointer a, gconstpointer b);
-typedef gint (*GCompareDataFunc)(gconstpointer a, gconstpointer b, gpointer user_data);
+
+/*
+ * GSequence - minimal implementation for ordered unique lists
+ */
+typedef struct _GSequence GSequence;
+typedef struct _GSequenceIter GSequenceIter;
+
+GSequence* g_sequence_new(GDestroyNotify data_destroy);
+GSequenceIter* g_sequence_lookup(GSequence *seq, gpointer data,
+                                 GCompareDataFunc cmp, gpointer user_data);
+GSequenceIter* g_sequence_insert_sorted(GSequence *seq, gpointer data,
+                                        GCompareDataFunc cmp, gpointer user_data);
+void g_sequence_remove(GSequenceIter *iter);
+typedef void (*GFunc)(gpointer data, gpointer user_data);
+/* GCompareFunc and GCompareDataFunc defined earlier in file */
 
 GHashTable* g_hash_table_new(GHashFunc hash_func, GEqualFunc key_equal_func);
 GHashTable* g_hash_table_new_full(GHashFunc hash_func, GEqualFunc key_equal_func,
@@ -772,6 +817,7 @@ gpointer g_ptr_array_remove_index_fast(GPtrArray *array, guint index_);
 gboolean g_ptr_array_remove_fast(GPtrArray *array, gpointer data);
 void g_ptr_array_foreach(GPtrArray *array, void (*func)(gpointer, gpointer), gpointer user_data);
 gboolean g_ptr_array_find(GPtrArray *array, gconstpointer needle, guint *index_);
+gboolean g_ptr_array_find_with_equal_func(GPtrArray *haystack, gconstpointer needle, GEqualFunc equal_func, gpointer user_data);
 void g_ptr_array_sort(GPtrArray *array, gint (*compare_func)(gconstpointer, gconstpointer));
 
 #define g_ptr_array_index(array, index_) ((array)->pdata[index_])
@@ -864,6 +910,13 @@ void g_string_append_vprintf(GString *string, const gchar *format, va_list args)
 gboolean g_string_equal(const GString *v, const GString *v2);
 guint g_string_hash(const GString *str);
 
+G_GNUC_UNUSED static inline void glib_autoptr_cleanup_GString(GString **_ptr)
+{
+    if (_ptr && *_ptr) {
+        g_string_free(*_ptr, TRUE);
+    }
+}
+
 /*
  * GRand - random number generator
  */
@@ -907,6 +960,15 @@ typedef struct _GSource GSource;
 typedef struct _GMainLoop GMainLoop;
 typedef struct _GMainContext GMainContext;
 
+typedef enum {
+    G_IO_IN   = 1 << 0,
+    G_IO_OUT  = 1 << 1,
+    G_IO_PRI  = 1 << 2,
+    G_IO_ERR  = 1 << 3,
+    G_IO_HUP  = 1 << 4,
+    G_IO_NVAL = 1 << 5,
+} GIOCondition;
+
 GMainLoop* g_main_loop_new(GMainContext *context, gboolean is_running);
 void g_main_loop_run(GMainLoop *loop);
 void g_main_loop_quit(GMainLoop *loop);
@@ -925,6 +987,9 @@ void g_main_context_wakeup(GMainContext *context);
 gboolean g_main_context_acquire(GMainContext *context);
 void g_main_context_release(GMainContext *context);
 
+void g_source_set_can_recurse(GSource *source, gboolean can_recurse);
+gboolean g_source_is_destroyed(GSource *source);
+
 guint g_timeout_add(guint interval, gboolean (*function)(gpointer), gpointer data);
 guint g_timeout_add_seconds(guint interval, gboolean (*function)(gpointer), gpointer data);
 guint g_idle_add(gboolean (*function)(gpointer), gpointer data);
@@ -936,12 +1001,25 @@ gboolean g_source_remove(guint tag);
 gboolean g_file_get_contents(const gchar *filename, gchar **contents, gsize *length, GError **error);
 gboolean g_file_set_contents(const gchar *filename, const gchar *contents, gssize length, GError **error);
 gboolean g_file_test(const gchar *filename, gint test);
+gint g_mkstemp(gchar *tmpl);
 gchar* g_get_current_dir(void);
 gchar* g_path_get_dirname(const gchar *file_name);
 gchar* g_path_get_basename(const gchar *file_name);
 gchar* g_build_filename(const gchar *first_element, ...) G_GNUC_NULL_TERMINATED;
 gchar* g_build_path(const gchar *separator, const gchar *first_element, ...) G_GNUC_NULL_TERMINATED;
 gboolean g_path_is_absolute(const gchar *file_name);
+
+/*
+ * GMappedFile (simple file-backed buffer)
+ */
+typedef struct _GMappedFile GMappedFile;
+
+GMappedFile *g_mapped_file_new(const gchar *filename, gboolean writable, GError **error);
+GMappedFile *g_mapped_file_new_from_fd(int fd, gboolean writable, GError **error);
+GMappedFile *g_mapped_file_ref(GMappedFile *file);
+void g_mapped_file_unref(GMappedFile *file);
+gsize g_mapped_file_get_length(GMappedFile *file);
+gchar *g_mapped_file_get_contents(GMappedFile *file);
 
 #define G_FILE_TEST_EXISTS       (1 << 0)
 #define G_FILE_TEST_IS_REGULAR   (1 << 1)
@@ -1053,7 +1131,7 @@ struct _GOnce {
 #define G_ONCE_INIT { 0, NULL }
 
 gpointer g_once_impl(GOnce *once, gpointer (*func)(gpointer), gpointer arg);
-void g_once_init_enter(volatile void *location);
+gboolean g_once_init_enter(volatile void *location);
 void g_once_init_leave(volatile void *location, gsize result);
 
 #define g_once(once, func, arg) g_once_impl(once, func, arg)
@@ -1265,14 +1343,23 @@ typedef struct _GSource GSource;
 typedef struct _GSourceFuncs GSourceFuncs;
 typedef struct _GSourceCallbackFuncs GSourceCallbackFuncs;
 
-struct _GSourceFuncs {
-    gboolean (*prepare)(GSource *source, gint *timeout_);
-    gboolean (*check)(GSource *source);
-    gboolean (*dispatch)(GSource *source, gpointer callback, gpointer user_data);
-    void (*finalize)(GSource *source);
-    gpointer closure_callback;
-    gpointer closure_marshal;
-};
+/* Forward declare GSourceFunc before using it */
+typedef gboolean (*GSourceFunc)(gpointer user_data);
+
+/* GSource constants */
+#define G_SOURCE_CONTINUE TRUE
+#define G_SOURCE_REMOVE FALSE
+
+/* GSource flags */
+#define G_SOURCE_CAN_RECURSE  (1 << 0)
+#define G_SOURCE_DESTROYED    (1 << 1)
+
+/* GSource priority levels */
+#define G_PRIORITY_HIGH            -100
+#define G_PRIORITY_DEFAULT          0
+#define G_PRIORITY_HIGH_IDLE        100
+#define G_PRIORITY_DEFAULT_IDLE     200
+#define G_PRIORITY_LOW              300
 
 struct _GSourceCallbackFuncs {
     void (*ref)(gpointer cb_data);
@@ -1296,6 +1383,15 @@ struct _GSource {
     gpointer priv;
 };
 
+struct _GSourceFuncs {
+    gboolean (*prepare)(GSource *source, gint *timeout_);
+    gboolean (*check)(GSource *source);
+    gboolean (*dispatch)(GSource *source, GSourceFunc callback, gpointer user_data);
+    void (*finalize)(GSource *source);
+    gpointer closure_callback;
+    gpointer closure_marshal;
+};
+
 GSource* g_source_new(GSourceFuncs *source_funcs, guint struct_size);
 void g_source_destroy(GSource *source);
 GSource* g_source_ref(GSource *source);
@@ -1305,6 +1401,7 @@ guint g_source_attach(GSource *source, GMainContext *context);
 void g_source_add_poll(GSource *source, GPollFD *fd);
 void g_source_remove_poll(GSource *source, GPollFD *fd);
 void g_source_set_name(GSource *source, const char *name);
+void g_source_set_priority(GSource *source, gint priority);
 gboolean g_source_remove(guint tag);
 
 GMainContext* g_main_context_new(void);
@@ -1325,7 +1422,11 @@ GMainContext* g_main_loop_get_context(GMainLoop *loop);
 GMainLoop* g_main_loop_ref(GMainLoop *loop);
 void g_main_loop_unref(GMainLoop *loop);
 
-typedef gboolean (*GSourceFunc)(gpointer user_data);
+void g_source_set_can_recurse(GSource *source, gboolean can_recurse);
+gboolean g_source_is_destroyed(GSource *source);
+
+GSource* g_timeout_source_new(guint interval);
+gint g_poll(GPollFD *fds, guint nfds, gint timeout);
 
 guint g_timeout_add(guint interval, GSourceFunc function, gpointer data);
 guint g_timeout_add_full(gint priority, guint interval, GSourceFunc function, gpointer data, GDestroyNotify notify);

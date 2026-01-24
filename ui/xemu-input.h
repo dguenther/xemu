@@ -32,8 +32,12 @@
 #include "qemu/queue.h"
 #else
 // Minimal QTAILQ stub for Switch (input not fully implemented yet)
+#ifndef QTAILQ_ENTRY
 #define QTAILQ_ENTRY(type) struct { struct type *tqe_next; struct type **tqe_prev; }
+#endif
+#ifndef QTAILQ_HEAD
 #define QTAILQ_HEAD(name, type) struct name { struct type *tqh_first; struct type **tqh_last; }
+#endif
 #endif
 
 #include "xemu-settings.h"

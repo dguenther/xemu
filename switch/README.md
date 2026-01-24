@@ -86,6 +86,14 @@ switch/
 ├── glib-compat.c        # GLib compatibility implementations
 ├── oslib-switch.c       # OS abstraction layer for Switch
 ├── main-switch.c        # Switch-specific main entry point
+├── qemu-stubs/          # Modular QEMU stub implementations (37 files)
+│   ├── common.h         # Shared header for stub files
+│   ├── trace.c          # Trace system stubs
+│   ├── block.c          # Block device system stubs
+│   ├── bql.c            # Big QEMU Lock stubs
+│   ├── audio.c          # Audio system stubs
+│   ├── xemu.c           # xemu-specific stubs
+│   └── ...              # Additional subsystem stubs
 └── README.md            # This file
 ```
 
@@ -109,11 +117,11 @@ sdmc:/switch/xemu/
 
 ### What Works
 - [x] Build system setup
-- [x] GLib compatibility layer (2375+ lines)
+- [x] GLib compatibility layer
 - [x] Platform abstraction stubs
 - [x] Switch platform files compile successfully (verified with podman)
-- [x] Full QEMU/xemu core links successfully (15.8 MB ELF)
-- [x] NRO package builds (6.1 MB)
+- [x] Full QEMU/xemu core links successfully
+- [x] NRO package builds
 - [ ] TCG (dynamic recompilation)
 - [ ] NV2A GPU emulation (OpenGL)
 - [ ] Audio emulation (SDL)
@@ -177,9 +185,24 @@ Ensure all switch-* packages are installed via dkp-pacman.
 - Check `sdmc:/switch/xemu/xemu.log` for error messages
 - Ensure you have enough free memory
 
-**Poor performance**
-- Try simpler games first
-- Ensure CPU boost mode is enabled (automatic)
+**Exception dumps + addr2line (Switch)**
+1. Locate the dump file on SD: `sdmc:/switch/xemu/exception_dump.txt`
+2. Use the `pc offset` value from the dump (this is the offset within `xemu.elf`)
+3. Run `addr2line` inside the devkitpro container:
+
+```bash
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkitpro/devkita64 \
+  /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line \
+  -f -e /xemu/dist-switch/xemu.elf 0xPC_OFFSET
+```
+
+Example (if `pc offset` is `0x5d4fa0`):
+
+```bash
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkitpro/devkita64 \
+  /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line \
+  -f -e /xemu/dist-switch/xemu.elf 0x5d4fa0
+```
 
 ## Contributing
 

@@ -23,7 +23,10 @@
 #include "crypto/random.h"
 #include "qapi/error.h"
 
-#ifdef _WIN32
+#if defined(__SWITCH__)
+/* Avoid pulling in switch.h (conflicts with qemu/osdep ThreadContext). */
+void randomGet(void *buf, size_t size);
+#elif defined(_WIN32)
 #include <wincrypt.h>
 static HCRYPTPROV hCryptProv;
 #else
@@ -36,7 +39,10 @@ static int fd;
 
 int qcrypto_random_init(Error **errp)
 {
-#ifdef _WIN32
+#if defined(__SWITCH__)
+    (void)errp;
+    return 0;
+#elif defined(_WIN32)
     if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL,
                              CRYPT_SILENT | CRYPT_VERIFYCONTEXT)) {
         error_setg_win32(errp, GetLastError(),
@@ -68,7 +74,11 @@ int qcrypto_random_bytes(void *buf,
                          size_t buflen,
                          Error **errp)
 {
-#ifdef _WIN32
+#if defined(__SWITCH__)
+    (void)errp;
+    randomGet(buf, buflen);
+    return 0;
+#elif defined(_WIN32)
     if (!CryptGenRandom(hCryptProv, buflen, buf)) {
         error_setg_win32(errp, GetLastError(),
                          "Unable to read random bytes");

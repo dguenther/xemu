@@ -19,7 +19,7 @@
 ## Current Status
 
 ### What's Working
-- ✅ EGL initialization with OpenGL 4.3 Core context
+- ✅ SDL2 OpenGL 4.3 Core context initialization
 - ✅ ImGui rendering via OpenGL3 backend
 - ✅ Screen clearing and buffer swapping
 - ✅ Basic controller input (Plus button to exit)
@@ -47,25 +47,24 @@
 ```
 main-switch.c
 ├── Initialize libnx services (applet, HID, etc.)
-├── switch_egl_init() → OpenGL 4.3 Core via EGL + gladLoadGL()
-├── SDL_Init(JOYSTICK | GAMECONTROLLER) → Input only, NO video
-├── xemu_hud_init(NULL, egl_context) → Initialize ImGui (no SDL window)
+├── SDL_Init(VIDEO | JOYSTICK | GAMECONTROLLER)
+├── SDL_CreateWindow + SDL_GL_CreateContext (OpenGL 4.3 Core)
+├── xemu_hud_init(window, gl_context)
 └── Main loop:
     ├── SDL_PollEvent() → Joystick/gamepad events
     ├── padUpdate() → libnx pad state for Plus button
     ├── xemu_hud_render() → ImGui rendering
-    └── switch_egl_swap() → eglSwapBuffers()
+    └── SDL_GL_SwapWindow()
 ```
 
 ### Key Design Decisions
 
-1. **EGL-only rendering**: SDL video subsystem conflicts with EGL's NWindow ownership
-   - SDL_INIT_VIDEO causes SDL_CreateWindow to hang
-   - Solution: Use SDL only for joystick/gamecontroller input, EGL for display
+1. **SDL2 GL rendering**: SDL provides the OpenGL 4.3 Core context on Switch
+   - Avoids EGL/NWindow ownership conflicts
+   - Uses standard SDL window + GL context
 
-2. **Skip ImGui SDL2 backend**: Without an SDL window, we can't use ImGui_ImplSDL2
-   - Solution: Use only ImGui_ImplOpenGL3 backend
-   - Manually set io.DisplaySize and io.DeltaTime each frame
+2. **ImGui SDL2 backend**: Use ImGui_ImplSDL2 + ImGui_ImplOpenGL3
+   - Matches the desktop path more closely
 
 3. **Stubbed assets**: Font and texture data files are not embedded in Switch build
    - Solution: Use ImGui's built-in default font
@@ -77,51 +76,17 @@ main-switch.c
 
 ## Critical Fixes Applied
 
-### 1. SDL Window Conflict (CRITICAL)
-**Problem**: `SDL_CreateWindow()` hangs indefinitely on Switch
-**Cause**: EGL already owns the NWindow; SDL tries to claim it too
-**Solution**: Don't initialize SDL_INIT_VIDEO or create SDL window
-```c
-// DON'T do this:
-SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
-SDL_CreateWindow(...);  // HANGS!
-
-// DO this instead:
-SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
-window = NULL;  // No SDL window
-```
-
-### 2. EGL Surface Size Query Returns 0
-**Problem**: `eglQuerySurface()` returns 0x0 for width/height
-**Cause**: Query happens before surface is fully initialized
-**Solution**: Keep the dimensions we set via `nwindowSetDimensions()`
-```c
-// Set dimensions before creating surface
-nwindowSetDimensions(win, 1280, 720);
-s_surface = eglCreateWindowSurface(...);
-
-// Query but don't overwrite if invalid
-EGLint query_w = 0, query_h = 0;
-eglQuerySurface(s_display, s_surface, EGL_WIDTH, &query_w);
-if (query_w > 0 && query_h > 0) {
-    s_width = query_w;
-    s_height = query_h;
-}
-// Otherwise keep 1280x720
-```
-
-### 3. ImGui SDL2 Backend Without Window
-**Problem**: `ImGui_ImplSDL2_NewFrame()` needs an SDL window
-**Solution**: Skip SDL2 backend entirely on Switch, manually configure ImGui
+### 1. SDL GL Context (Switch)
+**Problem**: Need OpenGL 4.3 Core for xemu on Switch
+**Solution**: Use SDL2 video + `SDL_GL_CreateContext()` and `gladLoadGL()`
 ```cpp
-#ifdef CONFIG_SWITCH
-    // Skip SDL2 backend init
-    ImGui_ImplOpenGL3_Init("#version 430");
-    io.DisplaySize = ImVec2(switch_egl_get_width(), switch_egl_get_height());
-#else
-    ImGui_ImplSDL2_InitForOpenGL(window, sdl_gl_context);
-    ImGui_ImplOpenGL3_Init("#version 150");
-#endif
+SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
+SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+window = SDL_CreateWindow(..., SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+ctx = SDL_GL_CreateContext(window);
+gladLoadGL();
 ```
 
 ### 4. Missing Font Data Crash
@@ -169,7 +134,8 @@ void RenderFramebuffer(GLint tex, int width, int height, bool flip) {
 #ifdef CONFIG_SWITCH
     glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, switch_egl_get_width(), switch_egl_get_height());
+    SDL_GL_GetDrawableSize(window, &w, &h);
+    glViewport(0, 0, w, h);
 #endif
 ```
 
@@ -179,9 +145,9 @@ void RenderFramebuffer(GLint tex, int width, int height, bool flip) {
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `switch/egl-switch.c` | EGL context management (GL 4.3 Core) | ✅ Complete |
-| `switch/egl-switch.h` | EGL function declarations | ✅ Complete |
-| `switch/main-switch.c` | Entry point with EGL + HUD integration | ✅ Complete |
+| `switch/egl-switch.c` | (removed) | ❌ Removed |
+| `switch/egl-switch.h` | (removed) | ❌ Removed |
+| `switch/main-switch.c` | Entry point with SDL GL + HUD integration | ✅ Complete |
 | `switch/qemu-stubs.c` | QEMU function stubs | ✅ Complete |
 | `switch/cpp-stubs.cc` | C++ class stubs (rebinding maps, debug windows) | ✅ Complete |
 | `switch/glib-compat.c` | GLib function implementations | ✅ Complete |
@@ -199,7 +165,7 @@ void RenderFramebuffer(GLint tex, int width, int height, bool flip) {
 
 | File | Changes |
 |------|---------|
-| `ui/xui/main.cc` | EGL includes, skip SDL2 backend, manual DisplaySize, glClear, test window |
+| `ui/xui/main.cc` | SDL2 backend on Switch, glClear, test window |
 | `ui/xui/font-manager.cc` | Use default ImGui font on Switch |
 | `ui/xui/gl-helpers.cc` | Handle empty texture data gracefully |
 | `ui/xui/main-menu.cc` | Guards for QEMU headers |
@@ -243,7 +209,7 @@ The following functions are stubbed to allow UI code to link:
 
 ### Libraries
 ```makefile
-LIBS := -lglad -lSDL2 -lEGL -lglapi -ldrm_nouveau -lnx -lm -lpthread
+LIBS := -lglad -lSDL2 -lglapi -ldrm_nouveau -lnx -lm -lpthread
 ```
 
 ### Key Include Paths
@@ -357,7 +323,7 @@ nxlink -s dist-switch/xemu.nro
 ## Technical Notes
 
 ### OpenGL Version
-- Switch mesa provides OpenGL 4.3 Core via EGL
+- Switch mesa provides OpenGL 4.3 Core via SDL GL context
 - ImGui requires OpenGL 3.0+ (we exceed this)
 - Shader version: `#version 430`
 

@@ -9,23 +9,26 @@
 
 #include "config-switch.h"
 #include "platform_stubs.h"
-#include "glib-compat.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>  /* For mkdir */
+#include <sys/stat.h>  /* For mkdir/stat */
+#include <pthread.h>
 
 #include <switch.h>
 
-/* SDL2 for input handling */
+/* SDL2 for window/input handling */
 #include <SDL.h>
-
-/* EGL context helper */
-#include "egl-switch.h"
+#include <glad/glad.h>
 
 /* xemu HUD interface */
 #include "xui/xemu-hud.h"
+
+/* QEMU main entrypoint */
+#include "qemu-main.h"
+
+/* xemu display (SDL window handoff) */
+extern void xemu_switch_set_sdl_window(SDL_Window *window, SDL_GLContext context);
 
 /* xemu settings (populates g_config defaults and loads/saves TOML) */
 #include "xemu-settings.h"
@@ -36,8 +39,53 @@ extern int switch_consume_boot_bios_request(void);
 /* Forward declarations */
 extern void switch_platform_init(void);
 extern void switch_platform_cleanup(void);
-extern void switch_run_xemu_bios(void);
+extern void qemu_init(int argc, char **argv);
+extern void switch_set_main_thread(pthread_t t);
 void switch_log(const char *format, ...);
+
+/* Userland exception handler to avoid hard lock and capture a dump. */
+__attribute__((aligned(16))) u8 __nx_exception_stack[0x1000];
+u64 __nx_exception_stack_size = sizeof(__nx_exception_stack);
+
+void __libnx_exception_handler(ThreadExceptionDump *ctx)
+{
+    FILE *f = fopen("sdmc:/switch/xemu/exception_dump.txt", "w");
+    if (!f) {
+        f = fopen("/switch/xemu/exception_dump.txt", "w");
+    }
+    if (!f) {
+        return;
+    }
+
+    fprintf(f, "error_desc: 0x%x\n", ctx->error_desc);
+    for (int i = 0; i < 29; i++) {
+        fprintf(f, "[X%d]: 0x%lx\n", i, ctx->cpu_gprs[i].x);
+    }
+    fprintf(f, "fp: 0x%lx\n", ctx->fp.x);
+    fprintf(f, "lr: 0x%lx\n", ctx->lr.x);
+    fprintf(f, "sp: 0x%lx\n", ctx->sp.x);
+    fprintf(f, "pc: 0x%lx\n", ctx->pc.x);
+    fprintf(f, "pstate: 0x%x\n", ctx->pstate);
+    fprintf(f, "afsr0: 0x%x\n", ctx->afsr0);
+    fprintf(f, "afsr1: 0x%x\n", ctx->afsr1);
+    fprintf(f, "esr: 0x%x\n", ctx->esr);
+    fprintf(f, "far: 0x%lx\n", ctx->far.x);
+
+    MemoryInfo mem_info;
+    u32 page_info = 0;
+    if (R_SUCCEEDED(svcQueryMemory(&mem_info, &page_info, ctx->lr.x))) {
+        fprintf(f, "lr region: base=0x%lx size=0x%lx type=0x%x perm=0x%x attr=0x%x\n",
+                mem_info.addr, mem_info.size, mem_info.type, mem_info.perm, mem_info.attr);
+        fprintf(f, "lr offset: 0x%lx\n", ctx->lr.x - mem_info.addr);
+    }
+    if (R_SUCCEEDED(svcQueryMemory(&mem_info, &page_info, ctx->pc.x))) {
+        fprintf(f, "pc region: base=0x%lx size=0x%lx type=0x%x perm=0x%x attr=0x%x\n",
+                mem_info.addr, mem_info.size, mem_info.type, mem_info.perm, mem_info.attr);
+        fprintf(f, "pc offset: 0x%lx\n", ctx->pc.x - mem_info.addr);
+    }
+
+    fclose(f);
+}
 
 /*
  * Switch-specific memory configuration
@@ -54,6 +102,19 @@ u32 __nx_applet_exit_mode = 1;           /* Exit cleanly */
  * On Switch, we need to set up nxlink or file-based logging
  */
 static FILE *log_file = NULL;
+static int log_to_stderr = 0;
+static int nxlink_active = 0;
+static int console_active = 0;
+
+static void switch_update_stderr_state(void)
+{
+    log_to_stderr = console_active || nxlink_active;
+}
+
+int switch_log_stderr_enabled(void)
+{
+    return log_to_stderr;
+}
 
 static int mkdir_path(const char *path)
 {
@@ -63,6 +124,12 @@ static int mkdir_path(const char *path)
     (void)path;
     return -1;
 #endif
+}
+
+static int file_exists(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0;
 }
 
 static void init_logging(void)
@@ -112,6 +179,34 @@ static void init_settings(void)
     } else {
         switch_log("Settings loaded\n");
     }
+
+    /* Disable welcome screen on Switch - we want to boot immediately with defaults */
+    g_config.general.show_welcome = false;
+
+    /* Set Switch-specific default paths if not configured */
+    if (!g_config.sys.files.flashrom_path || !g_config.sys.files.flashrom_path[0]) {
+        g_free(g_config.sys.files.flashrom_path);
+        g_config.sys.files.flashrom_path = g_strdup("sdmc:/switch/xemu/bios/bios.bin");
+        switch_log("Using default BIOS path: %s\n", g_config.sys.files.flashrom_path);
+    }
+
+    if (!g_config.sys.files.bootrom_path || !g_config.sys.files.bootrom_path[0]) {
+        g_free(g_config.sys.files.bootrom_path);
+        g_config.sys.files.bootrom_path = g_strdup("sdmc:/switch/xemu/bios/mcpx_1.0.bin");
+        switch_log("Using default MCPX ROM path: %s\n", g_config.sys.files.bootrom_path);
+    }
+
+    if (!g_config.sys.files.hdd_path || !g_config.sys.files.hdd_path[0]) {
+        g_free(g_config.sys.files.hdd_path);
+        g_config.sys.files.hdd_path = g_strdup("sdmc:/switch/xemu/bios/xbox_hdd.qcow2");
+        switch_log("Using default HDD path: %s\n", g_config.sys.files.hdd_path);
+    }
+
+    if (!g_config.sys.files.eeprom_path || !g_config.sys.files.eeprom_path[0]) {
+        g_free(g_config.sys.files.eeprom_path);
+        g_config.sys.files.eeprom_path = g_strdup("sdmc:/switch/xemu/bios/eeprom.bin");
+        switch_log("Using default EEPROM path: %s\n", g_config.sys.files.eeprom_path);
+    }
 }
 
 static void save_settings(void)
@@ -136,7 +231,9 @@ void switch_log(const char *format, ...)
     }
 
     /* Also output to stderr for nxlink debugging */
-    vfprintf(stderr, format, args);
+    if (log_to_stderr) {
+        vfprintf(stderr, format, args);
+    }
 
     va_end(args);
 }
@@ -210,7 +307,7 @@ static char **build_xemu_args(int *argc_out)
     /* For now, use hardcoded arguments for initial testing */
     static char *argv[] = {
         "xemu",
-        "-m", "64",                          /* 64MB RAM for Xbox */
+        "-display", "xemu",               /* Use xemu SDL+OpenGL display */
         "-machine", "xbox",                  /* Xbox machine type */
         NULL
     };
@@ -255,26 +352,93 @@ static void update_imgui_gamepad_input(PadState *pad)
  */
 static int check_required_files(void)
 {
+    int ok = 1;
+
+    const char *mcpx_path = g_config.sys.files.bootrom_path;
+    const char *bios_path = g_config.sys.files.flashrom_path;
+    const char *hdd_path = g_config.sys.files.hdd_path;
+
     /* Check for MCPX ROM */
-    if (!g_file_test("sdmc:/switch/xemu/bios/mcpx_1.0.bin", G_FILE_TEST_EXISTS)) {
-        switch_log("Warning: MCPX ROM not found at sdmc:/switch/xemu/bios/mcpx_1.0.bin\n");
+    if (!mcpx_path || !mcpx_path[0]) {
+        switch_log("Warning: MCPX ROM path not set in settings.\n");
+    } else if (!file_exists(mcpx_path)) {
+        switch_log("Warning: MCPX ROM not found at %s\n", mcpx_path);
         switch_log("Please copy the MCPX ROM file to this location.\n");
         /* Don't fail - let xemu show its own error */
     }
 
     /* Check for BIOS */
-    if (!g_file_test("sdmc:/switch/xemu/bios/bios.bin", G_FILE_TEST_EXISTS)) {
-        switch_log("Warning: BIOS not found at sdmc:/switch/xemu/bios/bios.bin\n");
+    if (!bios_path || !bios_path[0]) {
+        switch_log("Warning: BIOS path not set in settings.\n");
+        ok = 0;
+    } else if (!file_exists(bios_path)) {
+        switch_log("Warning: BIOS not found at %s\n", bios_path);
         switch_log("Please copy a compatible Xbox BIOS to this location.\n");
+        ok = 0;
     }
 
     /* Check for hard disk image */
-    if (!g_file_test("sdmc:/switch/xemu/xbox_hdd.qcow2", G_FILE_TEST_EXISTS)) {
-        switch_log("Warning: HDD image not found at sdmc:/switch/xemu/xbox_hdd.qcow2\n");
+    if (!hdd_path || !hdd_path[0]) {
+        switch_log("Warning: HDD path not set in settings.\n");
+        ok = 0;
+    } else if (!file_exists(hdd_path)) {
+        switch_log("Warning: HDD image not found at %s\n", hdd_path);
         switch_log("Please create or copy an Xbox HDD image to this location.\n");
+        ok = 0;
     }
 
-    return 0;
+    return ok ? 0 : -1;
+}
+
+static pthread_t qemu_thread;
+static int qemu_thread_started = 0;
+
+static void switch_qemu_thread_cleanup(void *opaque)
+{
+    (void)opaque;
+    qemu_thread_started = 0;
+    switch_log("Switch: QEMU thread exited\n");
+}
+
+static void *switch_qemu_thread_main(void *opaque)
+{
+    (void)opaque;
+
+    pthread_cleanup_push(switch_qemu_thread_cleanup, NULL);
+
+    int qemu_argc = 0;
+    char **qemu_argv = build_xemu_args(&qemu_argc);
+
+    switch_log("Switch: calling qemu_init (argc=%d)\n", qemu_argc);
+    qemu_init(qemu_argc, qemu_argv);
+
+    switch_log("Switch: entering qemu_main\n");
+    int status = qemu_main();
+    switch_log("Switch: qemu_main exited (%d)\n", status);
+    pthread_cleanup_pop(1);
+    return NULL;
+}
+
+static void switch_run_xemu_bios(void)
+{
+    if (qemu_thread_started) {
+        switch_log("Boot already in progress\n");
+        return;
+    }
+
+    if (check_required_files() != 0) {
+        switch_log("Boot aborted: missing required BIOS/HDD files.\n");
+        return;
+    }
+
+    qemu_thread_started = 1;
+    int rc = pthread_create(&qemu_thread, NULL, switch_qemu_thread_main, NULL);
+    if (rc != 0) {
+        qemu_thread_started = 0;
+        switch_log("Failed to start QEMU thread (%d)\n", rc);
+        return;
+    }
+    pthread_detach(qemu_thread);
 }
 
 /*
@@ -284,15 +448,18 @@ int main(int argc, char **argv)
 {
 #ifdef __SWITCH__
     int ret = 0;
-    int console_active = 0;
     SDL_Window *window = NULL;
+    SDL_GLContext gl_context = NULL;
 
     (void)argc;
     (void)argv;
 
+    switch_set_main_thread(pthread_self());
+
     /* Show console briefly for boot message */
     consoleInit(NULL);
     console_active = 1;
+    switch_update_stderr_state();
     printf("xemu for Nintendo Switch\n");
     printf("Initializing...\n");
 
@@ -314,6 +481,8 @@ int main(int argc, char **argv)
         if (nxlink_sock >= 0) {
             setvbuf(stdout, NULL, _IONBF, 0);
             setvbuf(stderr, NULL, _IONBF, 0);
+            nxlink_active = 1;
+            switch_update_stderr_state();
             switch_log("nxlink attached\n");
         }
     }
@@ -333,54 +502,84 @@ int main(int argc, char **argv)
     if (console_active) {
         consoleExit(NULL);
         console_active = 0;
+        switch_update_stderr_state();
     }
 
-    /* Initialize EGL with OpenGL 4.3 Core context */
-    switch_log("Initializing EGL...\n");
-    if (!switch_egl_init()) {
-        switch_log("Failed to initialize EGL\n");
+    /* Initialize SDL for video + input and create a GL 4.3 core context */
+    switch_log("Initializing SDL2 (video + input)...\n");
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
+        switch_log("SDL_Init failed: %s\n", SDL_GetError());
         ret = 1;
         goto cleanup;
     }
-    switch_log("EGL initialized with OpenGL 4.3 Core\n");
 
-    /* Initialize SDL for input handling only - no video needed since we use EGL */
-    switch_log("Initializing SDL2 for input...\n");
-    if (SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
-        switch_log("SDL_Init failed: %s\n", SDL_GetError());
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                        SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+    window = SDL_CreateWindow("xemu",
+                              0, 0, 1280, 720,
+                              SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+    if (!window) {
+        switch_log("SDL_CreateWindow failed: %s\n", SDL_GetError());
         ret = 1;
-        goto cleanup_egl;
+        goto cleanup_sdl;
     }
-    switch_log("SDL2 initialized (joystick/gamecontroller only)\n");
 
-    /* On Switch, we don't create an SDL window since EGL owns the NWindow.
-     * SDL is only used for input handling via joystick/gamecontroller APIs.
-     * We'll create a dummy window pointer for ImGui compatibility. */
-    switch_log("Skipping SDL window creation (EGL owns display)\n");
-    window = NULL;  /* No SDL window - EGL handles display */
+    gl_context = SDL_GL_CreateContext(window);
+    if (!gl_context) {
+        switch_log("SDL_GL_CreateContext failed: %s\n", SDL_GetError());
+        ret = 1;
+        goto cleanup_sdl;
+    }
+
+    SDL_GL_MakeCurrent(window, gl_context);
+    if (!gladLoadGL()) {
+        switch_log("gladLoadGL failed\n");
+        ret = 1;
+        goto cleanup_sdl;
+    }
+
+    xemu_switch_set_sdl_window(window, gl_context);
+
+    SDL_GL_SetSwapInterval(1);
+    switch_log("SDL2 GL context initialized (4.3 core)\n");
 
     /* Flush output before HUD init in case it crashes */
     fflush(stdout);
-    fflush(stderr);
+    if (switch_log_stderr_enabled()) {
+        fflush(stderr);
+    }
 
-    /* Initialize the xemu HUD with SDL window and EGL context */
+    /* Initialize the xemu HUD with SDL window and GL context */
     switch_log("Initializing xemu HUD...\n");
-    fflush(stderr);
-    xemu_hud_init(window, switch_egl_get_context());
+    if (switch_log_stderr_enabled()) {
+        fflush(stderr);
+    }
+    xemu_hud_init(window, gl_context);
     switch_log("xemu HUD initialized\n");
-    fflush(stderr);
+    if (switch_log_stderr_enabled()) {
+        fflush(stderr);
+    }
 
     /* Main loop */
     switch_log("Entering main loop\n");
-    fflush(stderr);
+    if (switch_log_stderr_enabled()) {
+        fflush(stderr);
+    }
 
     static int frame_count = 0;
     int running = 1;
-    int boot_requested = 0;
     while (running && appletMainLoop()) {
         if (frame_count < 5 || frame_count % 60 == 0) {
             switch_log("Frame %d\n", frame_count);
-            fflush(stderr);
+            if (switch_log_stderr_enabled()) {
+                fflush(stderr);
+            }
         }
         frame_count++;
 
@@ -407,45 +606,48 @@ int main(int argc, char **argv)
         /* Render the HUD */
         if (frame_count <= 3) {
             switch_log("Frame %d: calling xemu_hud_render...\n", frame_count - 1);
-            fflush(stderr);
+            if (switch_log_stderr_enabled()) {
+                fflush(stderr);
+            }
         }
         xemu_hud_render();
         if (frame_count <= 3) {
             switch_log("Frame %d: xemu_hud_render done, calling swap...\n", frame_count - 1);
-            fflush(stderr);
+            if (switch_log_stderr_enabled()) {
+                fflush(stderr);
+            }
         }
 
-        /* Swap EGL buffers */
-        switch_egl_swap();
+        /* Swap SDL GL buffers */
+        SDL_GL_SwapWindow(window);
         if (frame_count <= 3) {
             switch_log("Frame %d: swap done\n", frame_count - 1);
-            fflush(stderr);
+            if (switch_log_stderr_enabled()) {
+                fflush(stderr);
+            }
         }
 
         if (switch_consume_boot_bios_request()) {
             switch_log("Boot requested: starting Xbox BIOS...\n");
-            boot_requested = 1;
-            break;
+            switch_run_xemu_bios();
         }
     }
 
     switch_log("Exiting main loop\n");
 
-    /* If a boot was requested, keep EGL + HUD alive and enter the emulator loop. */
-    if (boot_requested) {
-        switch_run_xemu_bios();
-    }
-
     /* Cleanup HUD */
     xemu_hud_cleanup();
 
+    if (gl_context) {
+        SDL_GL_DeleteContext(gl_context);
+        gl_context = NULL;
+    }
     if (window) {
         SDL_DestroyWindow(window);
+        window = NULL;
     }
 cleanup_sdl:
     SDL_Quit();
-cleanup_egl:
-    switch_egl_cleanup();
 cleanup:
     save_settings();
     switch_platform_cleanup();
@@ -456,6 +658,8 @@ cleanup:
     }
     if (console_active) {
         consoleExit(NULL);
+        console_active = 0;
+        switch_update_stderr_state();
     }
 
     return ret;

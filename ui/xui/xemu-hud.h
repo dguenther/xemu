@@ -36,8 +36,8 @@
 extern "C" {
 #endif
 
-#ifndef CONFIG_SWITCH
-// QEMU Error type - not available on Switch
+#if !defined(CONFIG_SWITCH) || defined(SWITCH_QEMU_CORE)
+// QEMU Error type (opaque)
 typedef struct Error Error;
 #endif
 
@@ -45,7 +45,7 @@ typedef struct Error Error;
 int xemu_is_fullscreen(void);
 void xemu_toggle_fullscreen(void);
 
-#ifndef CONFIG_SWITCH
+#if !defined(CONFIG_SWITCH) || defined(SWITCH_QEMU_CORE)
 void xemu_eject_disc(Error **errp);
 void xemu_load_disc(const char *path, Error **errp);
 #endif
