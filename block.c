@@ -166,6 +166,17 @@ int path_has_protocol(const char *path)
         return 0;
     }
     p = path + strcspn(path, ":/\\");
+#elif defined(__SWITCH__)
+    /*
+     * On Nintendo Switch, libnx uses device prefixes like "sdmc:" for SD card
+     * and "romfs:" for embedded filesystem. These are not QEMU protocols but
+     * filesystem device specifiers that libnx's POSIX layer handles natively.
+     */
+    if (g_str_has_prefix(path, "sdmc:") ||
+        g_str_has_prefix(path, "romfs:")) {
+        return 0;
+    }
+    p = path + strcspn(path, ":/");
 #else
     p = path + strcspn(path, ":/");
 #endif
@@ -181,6 +192,13 @@ int path_is_absolute(const char *path)
         return 1;
     }
     return (*path == '/' || *path == '\\');
+#elif defined(__SWITCH__)
+    /* On Switch, sdmc: and romfs: prefixes denote absolute paths */
+    if (g_str_has_prefix(path, "sdmc:") ||
+        g_str_has_prefix(path, "romfs:")) {
+        return 1;
+    }
+    return (*path == '/');
 #else
     return (*path == '/');
 #endif
