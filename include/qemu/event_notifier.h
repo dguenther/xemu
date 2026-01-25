@@ -18,15 +18,30 @@
 #include <windows.h>
 #endif
 
-struct EventNotifier {
+#ifdef CONFIG_SWITCH
+/* Forward-declare libnx LEvent; switch-specific compilation units include the
+ * real header (<switch/kernel/levent.h>) before this file when they need it.
+ */
+typedef struct LEvent LEvent;
+#endif
+
+typedef struct EventNotifier {
 #ifdef _WIN32
     HANDLE event;
+#elif defined(CONFIG_SWITCH)
+    /* Switch uses libnx LEvent for proper kernel wake handling. We store a
+     * heap-allocated or otherwise externally-managed LEvent pointer here so
+     * we don't need to include libnx headers in every consumer of this
+     * header (which would cause name collisions).
+     */
+    LEvent *levent;
+    bool initialized;
 #else
     int rfd;
     int wfd;
     bool initialized;
 #endif
-};
+} EventNotifier;
 
 typedef void EventNotifierHandler(EventNotifier *);
 
@@ -39,7 +54,7 @@ int event_notifier_test_and_clear(EventNotifier *);
 void event_notifier_init_fd(EventNotifier *, int fd);
 int event_notifier_get_fd(const EventNotifier *);
 int event_notifier_get_wfd(const EventNotifier *);
-#else
+#elif defined(_WIN32)
 HANDLE event_notifier_get_handle(EventNotifier *);
 #endif
 

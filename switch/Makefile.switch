@@ -149,6 +149,7 @@ SWITCH_SRCS := \
     switch/oslib-switch.c \
     switch/glib-compat.c \
     $(wildcard switch/qemu-stubs/*.c) \
+    switch/event_notifier-switch.c \
     switch/noc_file_dialog_switch.c \
     switch/stb_image_impl.c \
     switch/cpp-stubs.cc \
@@ -196,13 +197,11 @@ UTIL_SRCS := \
     util/fast-hash.c \
     util/qemu-thread-posix.c \
     util/thread-pool.c \
-    util/event_notifier-posix.c \
     util/qtree.c \
     util/memfd.c \
     util/qemu-timer.c \
     util/qemu-timer-common.c \
-    util/aio-posix.c \
-    util/fdmon-poll.c \
+    switch/aio-switch.c \
     util/async.c \
     util/block-helpers.c \
     util/aiocb.c \
