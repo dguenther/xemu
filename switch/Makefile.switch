@@ -359,6 +359,7 @@ HW_BASE_SRCS := \
     hw/isa/isa-bus.c \
     switch/isa-pcspk-stub.c \
     hw/audio/soundhw.c \
+    hw/audio/ac97.c \
     hw/smbios/smbios-stub.c \
     hw/rtc/mc146818rtc.c \
     scsi/pr-manager-stub.c \
@@ -398,6 +399,7 @@ XBOX_HW_SRCS := \
     hw/xbox/xbox_pci.c \
     hw/xbox/smbus_xbox_smc.c \
     hw/xbox/amd_smbus.c \
+    hw/xbox/mcpx/aci.c \
     hw/xbox/mcpx/nvnet/nvnet.c \
     hw/xbox/acpi_xbox.c \
     hw/xbox/lpc47m157.c \
