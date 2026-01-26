@@ -289,7 +289,10 @@ static void smbus_smc_realize(DeviceState *dev, Error **errp)
         g_free(smc_version);
     }
 
-    xbox_smc_update_tray_state();
+    // Note: tray state will be updated by UI code when discs are loaded/ejected.
+    // Cannot call xbox_smc_update_tray_state() here as device may not yet be
+    // findable in object tree and dependent devices (IDE, ACPI) may not exist.
+    smc->traystate_reg = SMC_REG_TRAYSTATE_NO_MEDIA_DETECTED;
 }
 
 static void smbus_smc_class_initfn(ObjectClass *klass, void *data)
