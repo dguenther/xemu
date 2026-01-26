@@ -332,6 +332,8 @@ BLOCK_SRCS := \
 
 # HW base sources
 HW_BASE_SRCS := \
+    hw/block/block.c \
+    hw/block/hd-geometry.c \
     hw/core/qdev.c \
     hw/core/qdev-properties.c \
     hw/core/qdev-properties-system.c \
@@ -465,6 +467,7 @@ FPNG_SRCS := \
 # UI sources (xemu-specific) - HUD-only, no QEMU dependencies
 UI_SRCS := \
     ui/xemu-settings.cc \
+    ui/xemu-widescreen.c \
     ui/xui/main.cc \
     ui/xui/main-menu.cc \
     ui/xui/gl-helpers.cc \

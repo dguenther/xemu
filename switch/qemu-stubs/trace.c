@@ -224,6 +224,10 @@ uint16_t _TRACE_IDE_STATUS_READ_DSTATE = 0;
 uint16_t _TRACE_IDE_CTRL_WRITE_DSTATE = 0;
 uint16_t _TRACE_BMDMA_CMD_WRITEB_DSTATE = 0;
 
+/* HD Geometry */
+uint16_t _TRACE_HD_GEOMETRY_LCHS_GUESS_DSTATE = 0;
+uint16_t _TRACE_HD_GEOMETRY_GUESS_DSTATE = 0;
+
 /* Trace functions */
 int __attribute__((weak)) trace_events_enabled_count(void)
 {
