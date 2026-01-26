@@ -153,6 +153,7 @@ SWITCH_SRCS := \
     switch/noc_file_dialog_switch.c \
     switch/stb_image_impl.c \
     switch/cpp-stubs.cc \
+    switch/coroutine-switch.c \
     build/data/logo_sdf.png.c
 
 # Core QEMU utility sources
@@ -187,7 +188,9 @@ UTIL_SRCS := \
     util/interval-tree.c \
     util/lockcnt.c \
     util/rcu.c \
+    util/qemu-coroutine.c \
     util/qemu-coroutine-lock.c \
+    util/qemu-coroutine-sleep.c \
     util/qht.c \
     util/qdist.c \
     util/qsp.c \
@@ -205,7 +208,8 @@ UTIL_SRCS := \
     util/async.c \
     util/block-helpers.c \
     util/aiocb.c \
-    util/throttle.c
+    util/throttle.c \
+    util/timed-average.c
 
 # Character device backends
 # Minimal set for Xbox emulation (serial devices use "null" backend)
@@ -360,7 +364,14 @@ HW_BASE_SRCS := \
     hw/audio/soundhw.c \
     hw/smbios/smbios-stub.c \
     hw/rtc/mc146818rtc.c \
-    scsi/pr-manager-stub.c
+    scsi/pr-manager-stub.c \
+    hw/ide/core.c \
+    hw/ide/atapi.c \
+    hw/ide/pci.c \
+    hw/ide/piix.c \
+    hw/ide/ide-bus.c \
+    hw/ide/ide-dev.c \
+    hw/ide/ioport.c
 
 # PCI core sources
 PCI_SRCS := \

@@ -267,9 +267,31 @@ int qemu_create(const char *path, int flags, mode_t mode, Error **errp)
 
 int qemu_open(const char *name, int flags, Error **errp)
 {
+    printf("Switch qemu_open: flags=0x%x ", flags);
+    if ((flags & 3) == 0) printf("RDONLY");
+    else if ((flags & 3) == 1) printf("WRONLY");
+    else if ((flags & 3) == 2) printf("RDWR");
+    printf("\n");
+
     int fd = open(name, flags, 0666);
-    if (fd < 0 && errp) {
-        /* Error handling would go here */
+    if (fd < 0) {
+        int err = errno;
+        // Workaround: Switch seems to only support multiple readers or single writer
+        if ((flags & 3) == 2 && (err == EIO || err == EACCES)) {
+            printf("Switch qemu_open: O_RDWR failed, trying O_RDONLY fallback\n");
+            int rdonly_flags = (flags & ~3) | 0;  // Replace access mode with O_RDONLY
+            fd = open(name, rdonly_flags, 0666);
+            if (fd >= 0) {
+                printf("Switch qemu_open: SUCCESS fd=%d (RDONLY fallback)\n", fd);
+                return fd;
+            }
+            err = errno;
+        }
+        printf("Switch qemu_open: FAILED errno=%d\n", err);
+        // TODO: Set errp properly here with error_setg
+        errno = err;
+    } else {
+        printf("Switch qemu_open: SUCCESS fd=%d\n", fd);
     }
     return fd;
 }
@@ -292,6 +314,7 @@ int qemu_open_old(const char *name, int flags, ...)
 
 int qemu_close(int fd)
 {
+    printf("Switch qemu_close: fd=%d\n", fd);
     return close(fd);
 }
 
