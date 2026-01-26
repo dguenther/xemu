@@ -370,7 +370,8 @@ HW_BASE_SRCS := \
     hw/ide/piix.c \
     hw/ide/ide-bus.c \
     hw/ide/ide-dev.c \
-    hw/ide/ioport.c
+    hw/ide/ioport.c \
+    hw/misc/pci-testdev.c
 
 # PCI core sources
 PCI_SRCS := \
