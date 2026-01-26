@@ -1,6 +1,10 @@
 /*
  * QEMU Stubs for Nintendo Switch - QDev Device Model
  *
+ * Note: These stubs are needed even with the full QEMU core because
+ * the source files that implement these (hw/core/qdev-properties.c) 
+ * rely on C++ name mangling differences.
+ *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
@@ -125,8 +129,8 @@ void qdev_init_gpio_out_named(DeviceState *dev, qemu_irq *pins, const char *name
  * NOT NULL pointers, because find_list() in qemu-config.c iterates
  * through vm_config_groups[] and accesses ->name on each entry.
  * 
- * These are NOT guarded by SWITCH_QEMU_CORE because the source files
- * that normally provide them (qdev-monitor.c, etc.) are not in SYSTEM_SRCS.
+ * These stubs are still needed because the source files that normally 
+ * provide them (qdev-monitor.c, etc.) are not included in the build.
  */
 
 #include "qemu/queue.h"

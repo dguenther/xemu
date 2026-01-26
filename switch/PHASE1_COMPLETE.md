@@ -1,4 +1,4 @@
-# Phase 1 Complete - SWITCH_FULL=1 Build SUCCESS!
+# Phase 1 Complete - Full Build SUCCESS!
 
 **Date:** 2026-01-21
 **Status:** ✅ **LINKING SUCCESSFUL**
@@ -7,7 +7,7 @@
 
 ## Summary
 
-**Phase 1 Goal:** Get SWITCH_FULL=1 to link by adding Priority 1 critical stubs
+**Phase 1 Goal:** Get the full QEMU core build to link by adding Priority 1 critical stubs
 
 **Result:** 🎉 **EXCEEDED EXPECTATIONS** - Real QEMU implementations are now being compiled and linked!
 
@@ -182,7 +182,7 @@ We started with Phase 1 (35 critical functions) instead of trying to stub all 17
 ```bash
 podman run --rm -v "$(pwd):/src:Z" -w /src devkitpro/devkita64 bash -c '
 source $DEVKITPRO/switchvars.sh
-make -f switch/Makefile.switch SWITCH_FULL=1 -j4
+make -f switch/Makefile.switch -j4
 '
 ```
 

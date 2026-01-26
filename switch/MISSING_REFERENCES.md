@@ -1,4 +1,4 @@
-# Switch SWITCH_FULL=1 Build - Missing References Analysis
+# Switch Full Build - Missing References Analysis
 
 **Total Unique Missing References:** 179
 

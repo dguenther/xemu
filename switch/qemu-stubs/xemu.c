@@ -47,8 +47,6 @@ void xemu_snapshots_load(const char *name, void *err)
 }
 
 char *xemu_get_currently_loaded_disc_path(void) { return NULL; }
-
-#ifndef SWITCH_QEMU_CORE
 void xemu_input_set_test_mode(int mode) { (void)mode; }
 
 /*
@@ -59,11 +57,9 @@ struct ControllerStateList {
     void **tqh_last;
 };
 struct ControllerStateList available_controllers = { NULL, NULL };
-#endif
 
 void xemu_snapshots_delete(const char *name, void *err) { (void)name; (void)err; }
 
-#ifndef SWITCH_QEMU_CORE
 /* Input binding stubs */
 void *xemu_input_get_bound(int port) { (void)port; return NULL; }
 void xemu_input_bind(int port, void *state, int type) { (void)port; (void)state; (void)type; }
@@ -78,7 +74,6 @@ void *bound_controllers[4] = { NULL, NULL, NULL, NULL };
 
 /* Keyboard scancode map */
 const char *g_keyboard_scancode_map[256] = { NULL };
-#endif
 
 /* XBE info */
 void *xemu_get_xbe_info(void) { return NULL; }

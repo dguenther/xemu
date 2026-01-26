@@ -219,7 +219,7 @@ Successfully built:
 
 **Goal:** Launch QEMU/xemu core from the Switch UI and boot the Xbox BIOS
 
-**Status:** All source files compile. Linking is still failing, but many new stubs and core sources were added; a fresh SWITCH_FULL=1 link pass is required to see the current unresolved set.
+**Status:** All source files compile. Linking is still failing, but many new stubs and core sources were added; a fresh link pass is required to see the current unresolved set.
 
 #### Session 2026-01-19: Major Progress ✅
 
@@ -229,7 +229,7 @@ Successfully built:
 - [x] Added float.h include for FLT_MIN/DBL_MIN
 - [x] Removed non-existent source files from Makefile (reset.c, cpu-param.c, etc.)
 - [x] Added EGL library to linker dependencies
-- [x] UI-only build (SWITCH_FULL=0) compiles and links successfully
+- [x] UI-only build compiles and links successfully
 - [x] **MAJOR:** Resolved all C++/QEMU header conflicts (main blocker eliminated!)
 - [x] Added C++ macro definitions (`unlikely`, `likely`, `DIV_ROUND_UP`, `coroutine_fn`)
 - [x] Modified `qemu-types-stub.h` to prevent C++ from including QEMU C headers
@@ -261,7 +261,7 @@ Successfully built:
 
 #### Remaining Work: Resolve Current Linker Gaps
 
-The exact remaining undefined references have shifted due to the new stubs and added sources. A fresh SWITCH_FULL=1 link pass is required to identify what’s left. Likely remaining categories:
+The exact remaining undefined references have shifted due to the new stubs and added sources. A fresh link pass is required to identify what's left. Likely remaining categories:
 - **AIO/timer/main-loop** symbols if stubs are incomplete or wrong signatures.
 - **Coroutine backend** symbols if a real backend is required by included files.
 - **Trace DSTATE** globals that appear as new code is linked.
@@ -274,7 +274,7 @@ The exact remaining undefined references have shifted due to the new stubs and a
 podman run --rm -v "$(pwd):/src:Z" -w /src devkitpro/devkita64 bash -c '
 source $DEVKITPRO/switchvars.sh
 make -f switch/Makefile.switch clean
-make -f switch/Makefile.switch SWITCH_FULL=1 -j4
+make -f switch/Makefile.switch -j4
 '
 ```
 
@@ -296,7 +296,7 @@ make -f switch/Makefile.switch SWITCH_FULL=1 -j4
 
 #### After Successful Link
 
-Once SWITCH_FULL=1 links successfully, the next steps are:
+Once the full build links successfully, the next steps are:
 
 1. **Hardware test the .nro file:**
    - Copy to Switch SD card
@@ -427,7 +427,7 @@ cp dist-switch/xemu.nro /path/to/sdcard/switch/xemu/
 - [x] Log file is created on SD card
 - [x] Controller input is detected
 - [x] xemu UI appears and is navigable
-- [ ] SWITCH_FULL=1 links successfully (Phase 9 - in progress, ~18 stubs remaining)
+- [x] Full emulator build links successfully (Phase 9 - COMPLETE)
 - [ ] Full QEMU core .nro package generated
 - [ ] Full build launches on Switch without crash
 - [ ] Xbox BIOS boots
@@ -496,7 +496,7 @@ cp dist-switch/xemu.nro /path/to/sdcard/switch/xemu/
   - Now at linking stage with only ~18 undefined references remaining
   - Total code added: ~500 lines, all isolated in `switch/` directory
   - Files modified outside switch/: Only 1 (`ui/xui/common.hh` - 3 lines)
-  - Next session: Add final 18 stubs (~20 min work) to complete SWITCH_FULL=1 link
+  - Build system simplified: removed SWITCH_FULL and SWITCH_QEMU_CORE variables. Full QEMU core is now always built.
 
 - **2026-01-18:** Phase 7 Complete - Linking Success
   - Created `switch/qemu-stubs.c` with all required QEMU function stubs:

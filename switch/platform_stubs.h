@@ -266,18 +266,8 @@ static inline ssize_t getrandom(void *buf, size_t buflen, unsigned int flags)
 
 /*
  * Copy file range - Linux-specific
+ * Note: stub removed - real implementation from system/ provides this when needed
  */
-#ifndef SWITCH_QEMU_CORE
-static inline ssize_t copy_file_range(int fd_in, off_t *off_in,
-                                      int fd_out, off_t *off_out,
-                                      size_t len, unsigned int flags)
-{
-    (void)fd_in; (void)off_in; (void)fd_out; (void)off_out;
-    (void)len; (void)flags;
-    errno = ENOSYS;
-    return -1;
-}
-#endif
 
 /*
  * ioctl - not available on Switch

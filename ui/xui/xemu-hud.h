@@ -36,19 +36,14 @@
 extern "C" {
 #endif
 
-#if !defined(CONFIG_SWITCH) || defined(SWITCH_QEMU_CORE)
 // QEMU Error type (opaque)
 typedef struct Error Error;
-#endif
 
 // Implemented in xemu.c
 int xemu_is_fullscreen(void);
 void xemu_toggle_fullscreen(void);
-
-#if !defined(CONFIG_SWITCH) || defined(SWITCH_QEMU_CORE)
 void xemu_eject_disc(Error **errp);
 void xemu_load_disc(const char *path, Error **errp);
-#endif
 
 // Implemented in xemu_hud.cc
 void xemu_hud_init(SDL_Window *window, void *sdl_gl_context);

@@ -1,13 +1,15 @@
 /*
  * QEMU Stubs for Nintendo Switch - APIC (x86 Local APIC)
  *
+ * Note: These stubs are needed even with the full QEMU core,
+ * as certain APIC configuration functions are not implemented on Switch.
+ *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include "qemu/osdep.h"
 #include "common.h"
 
-#ifdef SWITCH_QEMU_CORE
 typedef struct CPUX86State CPUX86State;
 typedef struct DeviceState DeviceState;
 
@@ -44,7 +46,6 @@ int cpu_asidx_from_attrs(void *cpu, void *attrs)
     (void)attrs;
     return 0; /* Default address space index */
 }
-#endif
 
 int cpu_is_apic_enabled(DeviceState *apic)
 {
@@ -81,4 +82,15 @@ uint64_t apic_msr_read(void *apic, uint64_t reg)
 void apic_init_reset(void *apic)
 {
     (void)apic;
+}
+
+/* KVM IRQ tracking stubs */
+void kvm_reset_irq_delivered(void)
+{
+    /* No-op on Switch */
+}
+
+int kvm_get_irq_delivered(void)
+{
+    return 0;
 }

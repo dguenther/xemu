@@ -155,19 +155,3 @@ void qtest_server_init(const char *qtest_chrdev, const char *qtest_log,
     (void)qtest_log;
     (void)errp;
 }
-
-/*
- * TCG IOMMU functions - only stubbed when NOT building QEMU core.
- * When SWITCH_QEMU_CORE is defined, system/physmem.c provides the real implementations.
- */
-#ifndef SWITCH_QEMU_CORE
-void tcg_iommu_init_notifier_list(CPUState *cpu)
-{
-    (void)cpu;
-}
-
-void tcg_iommu_free_notifier_list(CPUState *cpu)
-{
-    (void)cpu;
-}
-#endif /* !SWITCH_QEMU_CORE */

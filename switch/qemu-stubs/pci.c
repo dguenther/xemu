@@ -110,11 +110,3 @@ void gsi_handler(void *opaque, int n, int level)
     (void)n;
     (void)level;
 }
-
-/*
- * xen_mode is only stubbed when NOT building the QEMU core.
- * When SWITCH_QEMU_CORE is defined, system/globals.c provides the real definition.
- */
-#ifndef SWITCH_QEMU_CORE
-bool xen_mode = false;
-#endif /* !SWITCH_QEMU_CORE */

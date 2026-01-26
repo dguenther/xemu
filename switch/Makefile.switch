@@ -51,11 +51,6 @@ BUILD       := build-switch
 OUTDIR      := $(TOPDIR)/dist-switch
 SOURCES     := switch
 INCLUDES    := switch include
-SWITCH_FULL ?= 1
-
-ifeq ($(SWITCH_FULL),1)
-DEFINES += -DSWITCH_QEMU_CORE=1
-endif
 
 #---------------------------------------------------------------------------------
 # Compiler flags
@@ -92,10 +87,8 @@ LDFLAGS := -specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) \
 # Libraries
 #---------------------------------------------------------------------------------
 # Note: Order matters for linking. glad must come before EGL/GL libs.
-LIBS_FULL := -lglad -lEGL -lSDL2 -lglapi -ldrm_nouveau \
-             -lnx -lm -lpthread
-LIBS_MINIMAL := -lnx -lm
-LIBS := $(LIBS_FULL)
+LIBS := -lglad -lEGL -lSDL2 -lglapi -ldrm_nouveau \
+        -lnx -lm -lpthread
 
 #---------------------------------------------------------------------------------
 # Include paths and library paths
@@ -580,16 +573,7 @@ TARGET_I386_SRCS := \
 TRACE_SRCS := \
     trace/control.c
 
-# Combine sources
-ALL_SRCS := \
-    $(SWITCH_SRCS) \
-    $(IMGUI_SRCS) \
-    $(IMPLOT_SRCS) \
-    $(FPNG_SRCS) \
-    $(UI_SRCS)
-
-# Full emulator build (Phase 9: boot to BIOS)
-ifeq ($(SWITCH_FULL),1)
+# Full emulator build with complete QEMU core
 ALL_SRCS := \
     $(SWITCH_SRCS) \
     $(IMGUI_SRCS) \
@@ -617,18 +601,6 @@ ALL_SRCS := \
     $(TARGET_I386_SRCS) \
     $(TRACE_SRCS) \
     $(SYSTEM_SRCS)
-endif
-
-# Minimal bootstrap build: only the Switch entry point (Phase 1)
-ifeq ($(SWITCH_BOOTSTRAP),1)
-ALL_SRCS := switch/main-switch.c switch/oslib-switch.c switch/glib-compat.c $(wildcard switch/qemu-stubs/*.c)
-LIBS := $(LIBS_FULL)
-endif
-
-# Full emulator build would include all of these (Phase 3):
-# $(UTIL_SRCS) $(QOM_SRCS) $(QOBJECT_SRCS) $(CRYPTO_SRCS)
-# $(BLOCK_SRCS) $(HW_BASE_SRCS) $(XBOX_HW_SRCS)
-# $(AUDIO_SRCS) $(TCG_SRCS) $(MEMORY_SRCS) $(TARGET_I386_SRCS)
 
 #---------------------------------------------------------------------------------
 # Object files
