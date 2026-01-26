@@ -359,4 +359,11 @@
  */
 #define XBOX 1
 
+/*
+ * USB subsystem - Enable OHCI for Xbox controllers
+ */
+#define CONFIG_USB 1
+#define CONFIG_USB_OHCI 1
+#define CONFIG_USB_OHCI_PCI 1
+
 #endif /* CONFIG_SWITCH_H */

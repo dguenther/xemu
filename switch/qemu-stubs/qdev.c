@@ -87,12 +87,6 @@ const char *qdev_fw_name(DeviceState *dev)
     return NULL;
 }
 
-HotplugHandler *qdev_get_hotplug_handler(DeviceState *dev)
-{
-    (void)dev;
-    return NULL;
-}
-
 void qdev_init_gpio_out(DeviceState *dev, qemu_irq *pins, int n)
 {
     (void)dev;

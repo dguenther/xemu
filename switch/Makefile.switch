@@ -263,6 +263,7 @@ QAPI_SRCS := \
     build/qapi/qapi-events-run-state.c \
     build/trace/trace-block.c \
     build/trace/trace-util.c \
+    build/trace/trace-hw_usb.c \
     qapi/qmp-registry.c \
     qapi/string-input-visitor.c \
     qapi/string-output-visitor.c \
@@ -333,6 +334,7 @@ HW_BASE_SRCS := \
     hw/core/bus.c \
     hw/core/cpu-common.c \
     hw/core/hotplug.c \
+    hw/core/qdev-hotplug.c \
     hw/core/resettable.c \
     hw/core/reset.c \
     hw/core/resetcontainer.c \
@@ -377,6 +379,18 @@ PCI_SRCS := \
 # Semihosting stubs
 SEMI_SRCS := \
     semihosting/stubs-system.c
+
+# USB subsystem sources (for Xbox OHCI controllers)
+USB_SRCS := \
+    hw/usb/bus.c \
+    hw/usb/combined-packet.c \
+    hw/usb/core.c \
+    hw/usb/desc.c \
+    hw/usb/desc-msos.c \
+    hw/usb/libhw.c \
+    hw/usb/pcap.c \
+    hw/usb/hcd-ohci.c \
+    hw/usb/hcd-ohci-pci.c
 
 # Xbox HW sources
 XBOX_HW_SRCS := \
@@ -596,6 +610,7 @@ ALL_SRCS := \
     $(SEMI_SRCS) \
     $(XBOX_HW_SRCS) \
     $(AUDIO_SRCS) \
+    $(USB_SRCS) \
     $(TCG_SRCS) \
     $(MEMORY_SRCS) \
     $(TARGET_I386_SRCS) \
