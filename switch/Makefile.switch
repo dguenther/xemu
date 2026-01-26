@@ -142,6 +142,7 @@ SWITCH_SRCS := \
     switch/oslib-switch.c \
     switch/glib-compat.c \
     $(wildcard switch/qemu-stubs/*.c) \
+    switch/vga-min.c \
     switch/event_notifier-switch.c \
     switch/noc_file_dialog_switch.c \
     switch/stb_image_impl.c \
