@@ -185,26 +185,26 @@ static void init_settings(void)
 
     /* Set Switch-specific default paths if not configured */
     if (!g_config.sys.files.flashrom_path || !g_config.sys.files.flashrom_path[0]) {
-        g_free(g_config.sys.files.flashrom_path);
-        g_config.sys.files.flashrom_path = g_strdup("sdmc:/switch/xemu/bios/bios.bin");
+        xemu_settings_set_string(&g_config.sys.files.flashrom_path,
+                                 "sdmc:/switch/xemu/bios/bios.bin");
         switch_log("Using default BIOS path: %s\n", g_config.sys.files.flashrom_path);
     }
 
     if (!g_config.sys.files.bootrom_path || !g_config.sys.files.bootrom_path[0]) {
-        g_free(g_config.sys.files.bootrom_path);
-        g_config.sys.files.bootrom_path = g_strdup("sdmc:/switch/xemu/bios/mcpx_1.0.bin");
+        xemu_settings_set_string(&g_config.sys.files.bootrom_path,
+                                 "sdmc:/switch/xemu/bios/mcpx_1.0.bin");
         switch_log("Using default MCPX ROM path: %s\n", g_config.sys.files.bootrom_path);
     }
 
     if (!g_config.sys.files.hdd_path || !g_config.sys.files.hdd_path[0]) {
-        g_free(g_config.sys.files.hdd_path);
-        g_config.sys.files.hdd_path = g_strdup("sdmc:/switch/xemu/bios/xbox_hdd.qcow2");
+        xemu_settings_set_string(&g_config.sys.files.hdd_path,
+                                 "sdmc:/switch/xemu/bios/xbox_hdd.qcow2");
         switch_log("Using default HDD path: %s\n", g_config.sys.files.hdd_path);
     }
 
     if (!g_config.sys.files.eeprom_path || !g_config.sys.files.eeprom_path[0]) {
-        g_free(g_config.sys.files.eeprom_path);
-        g_config.sys.files.eeprom_path = g_strdup("sdmc:/switch/xemu/bios/eeprom.bin");
+        xemu_settings_set_string(&g_config.sys.files.eeprom_path,
+                                 "sdmc:/switch/xemu/bios/eeprom.bin");
         switch_log("Using default EEPROM path: %s\n", g_config.sys.files.eeprom_path);
     }
 }
@@ -450,6 +450,7 @@ int main(int argc, char **argv)
     int ret = 0;
     SDL_Window *window = NULL;
     SDL_GLContext gl_context = NULL;
+    Result sock_rc = 1;
 
     (void)argc;
     (void)argv;
@@ -475,7 +476,7 @@ int main(int argc, char **argv)
     }
 
     /* Initialize networking for nxlink debugging */
-    Result sock_rc = socketInitializeDefault();
+    sock_rc = socketInitializeDefault();
     if (R_SUCCEEDED(sock_rc)) {
         int nxlink_sock = nxlinkStdio();
         if (nxlink_sock >= 0) {
