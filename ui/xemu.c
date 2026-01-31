@@ -154,17 +154,20 @@ static bool switch_qemu_thread_can_make_current(const char *tag)
 
     if (!g_switch_qemu_thread_make_current_tested) {
         g_switch_qemu_thread_make_current_tested = true;
+        switch_gl_owner_lock("switch_qemu_thread_can_make_current");
         if (SDL_GL_MakeCurrent(m_window, m_context) != 0) {
             fprintf(stderr,
                     "Switch: SDL_GL_MakeCurrent failed on non-main thread (%s): %s\n",
                     tag, SDL_GetError());
             g_switch_qemu_thread_make_current_ok = false;
-            return false;
+        } else {
+            SDL_GL_MakeCurrent(NULL, NULL);
+            fprintf(stderr,
+                    "Switch: SDL_GL_MakeCurrent succeeded on non-main thread (%s)\n",
+                    tag);
+            g_switch_qemu_thread_make_current_ok = true;
         }
-        SDL_GL_MakeCurrent(NULL, NULL);
-        fprintf(stderr,
-                "Switch: SDL_GL_MakeCurrent succeeded on non-main thread (%s)\n",
-                tag);
+        switch_gl_owner_unlock("switch_qemu_thread_can_make_current");
     }
 
     if (!g_switch_qemu_thread_make_current_ok) {
