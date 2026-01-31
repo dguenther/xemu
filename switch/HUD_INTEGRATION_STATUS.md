@@ -231,13 +231,13 @@ LIBS := -lglad -lSDL2 -lglapi -ldrm_nouveau -lnx -lm -lpthread
 
 ### Full Clean Build
 ```bash
-podman run --rm -v "$(pwd):/src:z" -w /src devkitpro/devkita64 \
+podman run --rm -v "$(pwd):/src:z" -w /src devkita64-pixman:0.42.2 \
     make -f switch/Makefile.switch clean nro
 ```
 
 ### Incremental Build
 ```bash
-podman run --rm -v "$(pwd):/src:z" -w /src devkitpro/devkita64 \
+podman run --rm -v "$(pwd):/src:z" -w /src devkita64-pixman:0.42.2 \
     make -f switch/Makefile.switch nro
 ```
 

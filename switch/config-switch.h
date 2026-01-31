@@ -78,6 +78,7 @@
  */
 #define CONFIG_OPENGL 1
 #define CONFIG_SDL 1
+#define CONFIG_PIXMAN 1
 #undef CONFIG_VULKAN
 #undef CONFIG_GBM
 #undef CONFIG_GTK

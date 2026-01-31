@@ -33,15 +33,15 @@ sudo dkp-pacman -S switch-dev switch-sdl2 switch-mesa switch-glad switch-zlib sw
 ### Using Podman/Docker (Recommended)
 
 ```bash
-# Pull devkitpro image
-podman pull devkitpro/devkita64:latest
+# Build custom devkitA64 image with pixman
+podman build -t devkita64-pixman:0.42.2 -f switch/Dockerfile switch
 
 # Run build in container (from xemu root directory)
-podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkitpro/devkita64 \
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 \
     make -f switch/Makefile.switch
 
 # Or build the Switch abstraction layer files only:
-podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkitpro/devkita64 bash -c '
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 bash -c '
 source $DEVKITPRO/switchvars.sh
 ARCH="-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIC"
 CFLAGS="-g -Wall -O2 -ffunction-sections $ARCH"
@@ -191,7 +191,7 @@ Ensure all switch-* packages are installed via dkp-pacman.
 3. Run `addr2line` inside the devkitpro container:
 
 ```bash
-podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkitpro/devkita64 \
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 \
   /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line \
   -f -e /xemu/dist-switch/xemu.elf 0xPC_OFFSET
 ```
@@ -199,7 +199,7 @@ podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkitpro/devkita64 \
 Example (if `pc offset` is `0x5d4fa0`):
 
 ```bash
-podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkitpro/devkita64 \
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 \
   /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line \
   -f -e /xemu/dist-switch/xemu.elf 0x5d4fa0
 ```

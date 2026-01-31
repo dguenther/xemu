@@ -166,7 +166,7 @@ All source files now compile successfully:
 
 **Build command:**
 ```bash
-podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkitpro/devkita64 bash -c '
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 bash -c '
 source $DEVKITPRO/switchvars.sh
 make -f switch/Makefile.switch
 '
@@ -271,7 +271,7 @@ The exact remaining undefined references have shifted due to the new stubs and a
 
 **Step 1: Re-run full link to capture current undefined refs**
 ```bash
-podman run --rm -v "$(pwd):/src:Z" -w /src devkitpro/devkita64 bash -c '
+podman run --rm -v "$(pwd):/src:Z" -w /src devkita64-pixman:0.42.2 bash -c '
 source $DEVKITPRO/switchvars.sh
 make -f switch/Makefile.switch clean
 make -f switch/Makefile.switch -j4

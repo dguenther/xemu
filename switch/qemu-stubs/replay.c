@@ -89,6 +89,13 @@ void replay_register_char_driver(void *chr)
     (void)chr;
 }
 
+void replay_chr_be_write(struct Chardev *s, const uint8_t *buf, int len)
+{
+    (void)s;
+    (void)buf;
+    (void)len;
+}
+
 int replay_running_debug(void)
 {
     return 0;
