@@ -127,6 +127,15 @@ void replay_async_events(void)
 {
 }
 
+void replay_input_event(void *event)
+{
+    (void)event;
+}
+
+void replay_input_sync_event(void)
+{
+}
+
 int64_t replay_get_instructions(void)
 {
     return 0;

@@ -48,6 +48,13 @@ void xemu_snapshots_load(const char *name, void *err)
 
 char *xemu_get_currently_loaded_disc_path(void) { return NULL; }
 void xemu_input_set_test_mode(int mode) { (void)mode; }
+void xemu_input_process_sdl_events(void *event) { (void)event; }
+void xemu_input_update_controllers(void) { }
+void xemu_snapshots_set_framebuffer_texture(unsigned int tex, bool flip)
+{
+    (void)tex;
+    (void)flip;
+}
 
 /*
  * Controller list stub

@@ -67,6 +67,8 @@
 #ifndef GL_UNPACK_ROW_LENGTH_EXT
 #define GL_UNPACK_ROW_LENGTH_EXT GL_UNPACK_ROW_LENGTH
 #endif
+
+#include "gl-owner.h"
 #endif
 
 #ifdef _WIN32
@@ -130,6 +132,12 @@ static SDL_GLContext m_context;
 static SDL_Window *g_external_window;
 static SDL_GLContext g_external_gl_context;
 static bool g_switch_external_ui;
+static bool g_switch_qemu_thread_make_current_tested;
+static bool g_switch_qemu_thread_make_current_ok = true;
+static bool g_switch_qemu_thread_make_current_skip_logged;
+
+extern bool switch_is_main_thread(void);
+extern void glo_set_shared_window(void *window);
 
 void xemu_switch_set_sdl_window(SDL_Window *window, SDL_GLContext context)
 {
@@ -137,10 +145,44 @@ void xemu_switch_set_sdl_window(SDL_Window *window, SDL_GLContext context)
     g_external_gl_context = context;
     g_switch_external_ui = (window != NULL && context != NULL);
 }
+
+static bool switch_qemu_thread_can_make_current(const char *tag)
+{
+    if (switch_is_main_thread()) {
+        return true;
+    }
+
+    if (!g_switch_qemu_thread_make_current_tested) {
+        g_switch_qemu_thread_make_current_tested = true;
+        if (SDL_GL_MakeCurrent(m_window, m_context) != 0) {
+            fprintf(stderr,
+                    "Switch: SDL_GL_MakeCurrent failed on non-main thread (%s): %s\n",
+                    tag, SDL_GetError());
+            g_switch_qemu_thread_make_current_ok = false;
+            return false;
+        }
+        SDL_GL_MakeCurrent(NULL, NULL);
+        fprintf(stderr,
+                "Switch: SDL_GL_MakeCurrent succeeded on non-main thread (%s)\n",
+                tag);
+    }
+
+    if (!g_switch_qemu_thread_make_current_ok) {
+        if (!g_switch_qemu_thread_make_current_skip_logged) {
+            fprintf(stderr,
+                    "Switch: Skipping SDL_GL_MakeCurrent on non-main thread; rendering stays on main thread\n");
+            g_switch_qemu_thread_make_current_skip_logged = true;
+        }
+        return false;
+    }
+
+    return true;
+}
 #endif
 // struct decal_shader *blit;
 
 static QemuSemaphore display_init_sem;
+static bool g_display_inited;
 
 static void toggle_full_screen(struct sdl2_console *scon);
 
@@ -714,6 +756,7 @@ static void sdl2_display_very_early_init(DisplayOptions *o)
     m_window = g_external_window;
     m_context = g_external_gl_context;
 
+    glo_set_shared_window(m_window);
     SDL_GL_MakeCurrent(m_window, m_context);
     nv2a_context_init();
     SDL_GL_MakeCurrent(NULL, NULL);
@@ -868,16 +911,44 @@ static void sdl2_display_very_early_init(DisplayOptions *o)
 #endif
 }
 
+void xemu_display_very_early_init(void)
+{
+    sdl2_display_very_early_init(NULL);
+}
+
+void xemu_display_init_semaphore(void)
+{
+    qemu_sem_init(&display_init_sem, 0);
+}
+
+void xemu_display_wait_for_init(void)
+{
+    qemu_sem_wait(&display_init_sem);
+}
+
+bool xemu_display_is_ready(void)
+{
+    return g_display_inited;
+}
+
 static void sdl2_display_early_init(DisplayOptions *o)
 {
 #ifdef CONFIG_SWITCH
     assert(o->type == DISPLAY_TYPE_XEMU);
     display_opengl = 1;
 
-    SDL_GL_MakeCurrent(m_window, m_context);
-    if (!g_switch_external_ui) {
+    bool can_make_current = switch_qemu_thread_can_make_current("sdl2_display_early_init");
+    if (can_make_current) {
+        switch_gl_owner_lock("sdl2_display_early_init");
+        SDL_GL_MakeCurrent(m_window, m_context);
+    }
+    if (!g_switch_external_ui && can_make_current) {
         SDL_GL_SetSwapInterval(g_config.display.window.vsync ? 1 : 0);
         xemu_hud_init(m_window, m_context);
+    }
+    if (can_make_current) {
+        SDL_GL_MakeCurrent(NULL, NULL);
+        switch_gl_owner_unlock("sdl2_display_early_init");
     }
     return;
 #else
@@ -898,7 +969,15 @@ static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
     SDL_SysWMinfo info;
 
     assert(o->type == DISPLAY_TYPE_XEMU);
+#ifdef CONFIG_SWITCH
+    bool can_make_current = switch_qemu_thread_can_make_current("sdl2_display_init");
+    if (can_make_current) {
+        switch_gl_owner_lock("sdl2_display_init");
+        SDL_GL_MakeCurrent(m_window, m_context);
+    }
+#else
     SDL_GL_MakeCurrent(m_window, m_context);
+#endif
 
     memset(&info, 0, sizeof(info));
     SDL_VERSION(&info.version);
@@ -927,7 +1006,16 @@ static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
 
     sdl2_console = g_new0(struct sdl2_console, sdl2_num_outputs);
     for (i = 0; i < sdl2_num_outputs; i++) {
+#ifdef CONFIG_SWITCH
+        QemuConsole *con = qemu_console_lookup_default();
+        fprintf(stderr,
+                "Switch: display console=%p index=%d type=%s\n",
+                (void *)con,
+                con ? qemu_console_get_index(con) : -1,
+                (con && qemu_console_is_graphic(con)) ? "graphic" : "text/other");
+#else
         QemuConsole *con = qemu_console_lookup_by_index(i);
+#endif
         assert(con != NULL);
         if (!qemu_console_is_graphic(con) &&
             qemu_console_get_index(con) != 0) {
@@ -962,7 +1050,15 @@ static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
     sdl_cursor_normal = SDL_GetCursor();
 
     /* Tell main thread to go ahead and create the app and enter the run loop */
+#ifdef CONFIG_SWITCH
+    if (can_make_current) {
+        SDL_GL_MakeCurrent(NULL, NULL);
+        switch_gl_owner_unlock("sdl2_display_init");
+    }
+#else
     SDL_GL_MakeCurrent(NULL, NULL);
+#endif
+    g_display_inited = true;
     qemu_sem_post(&display_init_sem);
 }
 
@@ -1034,7 +1130,18 @@ void sdl2_gl_update(DisplayChangeListener *dcl,
     struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
     assert(scon->opengl);
 
+#ifdef CONFIG_SWITCH
+    if (!switch_qemu_thread_can_make_current("sdl2_gl_update")) {
+        return;
+    }
+    switch_gl_owner_lock("sdl2_gl_update");
     SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
+    SDL_GL_MakeCurrent(NULL, NULL);
+    switch_gl_owner_unlock("sdl2_gl_update");
+    return;
+#else
+    SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
+#endif
 }
 
 void sdl2_gl_switch(DisplayChangeListener *dcl,
@@ -1042,10 +1149,26 @@ void sdl2_gl_switch(DisplayChangeListener *dcl,
 {
     struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
     assert(scon->opengl);
+#ifdef CONFIG_SWITCH
+    if (!switch_qemu_thread_can_make_current("sdl2_gl_switch")) {
+        /* Still update the surface pointer so the main thread can render. */
+        scon->surface = new_surface;
+        if (!scon->real_window) {
+            scon->real_window = m_window;
+            scon->winctx = m_context;
+        }
+        return;
+    }
+    switch_gl_owner_lock("sdl2_gl_switch");
+#endif
     SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
     xb_surface_gl_destroy_texture(scon->surface);
     scon->surface = new_surface;
     if (!new_surface) {
+#ifdef CONFIG_SWITCH
+        SDL_GL_MakeCurrent(NULL, NULL);
+        switch_gl_owner_unlock("sdl2_gl_switch");
+#endif
         return;
     }
 
@@ -1054,6 +1177,10 @@ void sdl2_gl_switch(DisplayChangeListener *dcl,
         scon->winctx = m_context;
         SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
     }
+#ifdef CONFIG_SWITCH
+    SDL_GL_MakeCurrent(NULL, NULL);
+    switch_gl_owner_unlock("sdl2_gl_switch");
+#endif
 }
 
 float fps = 1.0;
@@ -1076,8 +1203,12 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
     struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
     assert(scon->opengl);
     bool flip_required = false;
+#ifdef CONFIG_SWITCH
+    static int no_surface_log_count;
+    static int refresh_log_count;
+    static int gl_owner_skip_log_count;
+#endif
 
-    SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
     update_fps();
 
     /* XXX: Note that this bypasses the usual VGA path in order to quickly
@@ -1091,7 +1222,62 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
      * to the framebuffer, fall back to the VGA path.
      */
     GLuint tex = nv2a_get_framebuffer_surface();
+#ifdef CONFIG_SWITCH
+    if (refresh_log_count < 5) {
+        fprintf(stderr,
+                "Switch: sdl2_gl_refresh tex=%u surface=%p image=%p\n",
+                tex,
+                (void *)scon->surface,
+                scon->surface ? (void *)scon->surface->image : NULL);
+        refresh_log_count++;
+    }
+#endif
+
+#ifdef CONFIG_SWITCH
+    /* Always pump input early so we don't stall on GL ownership. */
+    sdl2_poll_events(scon);
+    if (!switch_gl_owner_trylock("sdl2_gl_refresh")) {
+        if (gl_owner_skip_log_count < 5) {
+            fprintf(stderr, "Switch: GL owner busy, skipping frame\n");
+            gl_owner_skip_log_count++;
+        }
+        return;
+    }
+    if (!scon->surface) {
+        scon->surface = qemu_console_surface(scon->dcl.con);
+        if (scon->surface && no_surface_log_count < 5) {
+            fprintf(stderr,
+                    "Switch: recovered surface=%p image=%p\n",
+                    (void *)scon->surface,
+                    (void *)scon->surface->image);
+        }
+    }
+#endif
+
+#ifdef CONFIG_SWITCH
+    SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
+#else
+    SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
+#endif
+
     if (tex == 0) {
+        if (!scon->surface || !scon->surface->image) {
+#ifdef CONFIG_SWITCH
+            if (no_surface_log_count < 5) {
+                fprintf(stderr,
+                        "Switch: no surface for refresh (scon=%p surface=%p image=%p)\n",
+                        (void *)scon,
+                        (void *)scon->surface,
+                        scon->surface ? (void *)scon->surface->image : NULL);
+                no_surface_log_count++;
+            }
+#endif
+#ifdef CONFIG_SWITCH
+            SDL_GL_MakeCurrent(NULL, NULL);
+            switch_gl_owner_unlock("sdl2_gl_refresh");
+#endif
+            return;
+        }
         // FIXME: Don't upload if notdirty
         xb_surface_gl_create_texture(scon->surface);
         scon->updates++;
@@ -1105,8 +1291,10 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
      * possible lengthy blocking (for vsync).
      */
     qemu_mutex_lock_main_loop();
+#ifndef CONFIG_SWITCH
     bql_lock();
     sdl2_poll_events(scon);
+#endif
 
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -1115,21 +1303,31 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
     xemu_hud_render();
 
     // Release BQL before swapping (which may sleep if swap interval is not immediate)
+#ifndef CONFIG_SWITCH
     bql_unlock();
+#endif
     qemu_mutex_unlock_main_loop();
 
     glFinish();
     nv2a_release_framebuffer_surface();
     SDL_GL_SwapWindow(scon->real_window);
+#ifdef CONFIG_SWITCH
+    SDL_GL_MakeCurrent(NULL, NULL);
+    switch_gl_owner_unlock("sdl2_gl_refresh");
+#endif
 
     /* VGA update (see note above) + vblank */
     qemu_mutex_lock_main_loop();
+#ifndef CONFIG_SWITCH
     bql_lock();
+#endif
     graphic_hw_update(scon->dcl.con);
     if (scon->updates && scon->surface) {
         scon->updates = 0;
     }
+#ifndef CONFIG_SWITCH
     bql_unlock();
+#endif
     qemu_mutex_unlock_main_loop();
 
     /*
@@ -1174,6 +1372,14 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
         }
     }
 
+}
+
+void xemu_display_refresh(void)
+{
+    if (!sdl2_console || !g_display_inited) {
+        return;
+    }
+    sdl2_gl_refresh(&sdl2_console[0].dcl);
 }
 
 void sdl2_gl_redraw(struct sdl2_console *scon)

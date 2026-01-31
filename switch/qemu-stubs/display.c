@@ -74,6 +74,12 @@ void qemu_display_init(DisplayState *ds, DisplayOptions *opts)
     (void)opts;
 }
 
+void dpy_set_ui_info(void *info, bool init)
+{
+    (void)info;
+    (void)init;
+}
+
 /* Arch/init globals */
 const uint32_t arch_type = QEMU_ARCH_I386;
 int graphic_width = 800;

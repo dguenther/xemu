@@ -61,6 +61,7 @@ void rom_reset_order_override(void)
 {
 }
 
-void rom_check_and_register_reset(void)
+int rom_check_and_register_reset(void)
 {
+    return 0;
 }

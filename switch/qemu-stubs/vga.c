@@ -33,4 +33,9 @@ __attribute__((weak)) void vga_invalidate_scanlines(VGACommonState *s, int y1, i
     (void)y2;
 }
 
+__attribute__((weak)) void graphic_hw_update(void *con)
+{
+    (void)con;
+}
+
 __attribute__((weak)) const MemoryRegionOps serial_io_ops = { 0 };

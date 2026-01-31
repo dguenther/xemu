@@ -297,14 +297,17 @@ static inline void g_free(gpointer mem)
     free(mem);
 }
 
-static inline void g_clear_pointer(gpointer *pp, void (*destroy)(gpointer))
-{
-    gpointer p = *pp;
-    if (p) {
-        *pp = NULL;
-        destroy(p);
-    }
-}
+#ifndef g_clear_pointer
+#define g_clear_pointer(pp, destroy) \
+    do { \
+        __typeof__(*(pp)) *_pp = (pp); \
+        __typeof__(*_pp) _p = *_pp; \
+        if (_p) { \
+            *_pp = NULL; \
+            (destroy)(_p); \
+        } \
+    } while (0)
+#endif
 
 #ifndef g_steal_pointer
 #define g_steal_pointer(pp) \

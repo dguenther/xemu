@@ -36,6 +36,13 @@ struct _GloContext {
     SDL_GLContext gl_context;
 };
 
+static SDL_Window *g_shared_window_override;
+
+void glo_set_shared_window(void *window)
+{
+    g_shared_window_override = (SDL_Window *)window;
+}
+
 /* Create an OpenGL context */
 GloContext *glo_context_create(void)
 {
@@ -57,24 +64,30 @@ GloContext *glo_context_create(void)
         SDL_GL_CONTEXT_PROFILE_MASK,
         SDL_GL_CONTEXT_PROFILE_CORE);
 
-    // Create main window
-    context->window = SDL_CreateWindow(
-        "SDL Offscreen Window",
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        640, 480,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
-    if (context->window == NULL) {
-        fprintf(stderr, "%s: Failed to create window\n", __func__);
-        SDL_Quit();
-        exit(1);
+    if (g_shared_window_override) {
+        context->window = g_shared_window_override;
+    } else {
+        // Create main window
+        context->window = SDL_CreateWindow(
+            "SDL Offscreen Window",
+            SDL_WINDOWPOS_CENTERED,
+            SDL_WINDOWPOS_CENTERED,
+            640, 480,
+            SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+        if (context->window == NULL) {
+            fprintf(stderr, "%s: Failed to create window\n", __func__);
+            SDL_Quit();
+            exit(1);
+        }
     }
 
     context->gl_context = SDL_GL_CreateContext(context->window);
     if (context->gl_context == NULL) {
         fprintf(stderr, "%s: Failed to create GL context\n", __func__);
-        SDL_DestroyWindow(context->window);
-        SDL_Quit();
+        if (!g_shared_window_override) {
+            SDL_DestroyWindow(context->window);
+            SDL_Quit();
+        }
         exit(1);
     }
 
@@ -86,11 +99,22 @@ GloContext *glo_context_create(void)
 /* Set current context */
 void glo_set_current(GloContext *context)
 {
+    int rc;
     if (context == NULL) {
-        SDL_GL_MakeCurrent(NULL, NULL);
+        rc = SDL_GL_MakeCurrent(NULL, NULL);
     } else {
-        SDL_GL_MakeCurrent(context->window, context->gl_context);
+        rc = SDL_GL_MakeCurrent(context->window, context->gl_context);
     }
+#ifdef CONFIG_SWITCH
+    if (rc != 0) {
+        static bool logged;
+        if (!logged) {
+            fprintf(stderr, "Switch: glo_set_current failed: %s\n",
+                    SDL_GetError());
+            logged = true;
+        }
+    }
+#endif
 }
 
 /* Destroy a previously created OpenGL context */

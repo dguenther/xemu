@@ -15,6 +15,10 @@ void qemu_mutex_lock_main_loop(void)
 {
 }
 
+void qemu_mutex_unlock_main_loop(void)
+{
+}
+
 void qemu_init_main_loop_lock(void)
 {
 }

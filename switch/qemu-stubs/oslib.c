@@ -7,6 +7,22 @@
 #include "qemu/osdep.h"
 #include "common.h"
 
+typedef uint32_t NxResult;
+
+typedef struct {
+    uint64_t addr;
+    uint64_t size;
+    uint32_t type;
+    uint32_t attr;
+    uint32_t perm;
+    uint32_t ipc_refcount;
+    uint32_t device_refcount;
+    uint32_t padding;
+} NxMemoryInfo;
+
+extern NxResult svcQueryMemory(NxMemoryInfo *mem_info, uint32_t *page_info,
+                               uint64_t addr);
+
 /*
  * Error reporting stubs
  * Note: error_printf is already provided by util/error-report.c
@@ -17,6 +33,12 @@ static pthread_t switch_main_thread;
 void switch_set_main_thread(pthread_t t)
 {
     switch_main_thread = t;
+}
+
+bool switch_is_main_thread(void)
+{
+    return switch_main_thread &&
+           pthread_equal(pthread_self(), switch_main_thread);
 }
 
 void error_vprintf(const char *fmt, va_list ap)
@@ -33,7 +55,19 @@ void error_vprintf(const char *fmt, va_list ap)
 
 __attribute__((noreturn)) void exit(int status)
 {
-    switch_log("exit(%d) called\n", status);
+    void *ret = __builtin_return_address(0);
+    NxMemoryInfo mem_info;
+    uint32_t page_info = 0;
+    NxResult rc = svcQueryMemory(&mem_info, &page_info, (uint64_t)ret);
+    uintptr_t base = (rc == 0) ? (uintptr_t)mem_info.addr : 0;
+    uintptr_t off = base ? ((uintptr_t)ret - base) : 0;
+    if (rc == 0) {
+        switch_log("exit(%d) called (return=%p base=%p off=0x%lx)\n",
+                   status, ret, (void *)base, (unsigned long)off);
+    } else {
+        switch_log("exit(%d) called (return=%p query failed: 0x%x)\n",
+                   status, ret, rc);
+    }
     if (switch_main_thread &&
         !pthread_equal(pthread_self(), switch_main_thread)) {
         pthread_exit((void *)(intptr_t)status);

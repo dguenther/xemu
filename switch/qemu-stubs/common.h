@@ -131,5 +131,6 @@ typedef int ICountMode;
 
 /* Utility functions */
 void switch_log(const char *format, ...);
+bool switch_is_main_thread(void);
 
 #endif /* SWITCH_QEMU_STUBS_COMMON_H */

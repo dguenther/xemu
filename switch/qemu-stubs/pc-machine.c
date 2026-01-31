@@ -314,7 +314,7 @@ bool fw_cfg_add_from_generator(FWCfgState *s, const char *filename,
     return false;
 }
 
-void qemu_init_arch_modules(void)
+__attribute__((weak)) void qemu_init_arch_modules(void)
 {
 }
 

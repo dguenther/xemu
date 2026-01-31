@@ -39,6 +39,9 @@ typedef struct _GloContext GloContext;
 /* Change current context */
 void glo_set_current(GloContext *context);
 
+/* Optional: use an existing SDL window for new shared contexts */
+void glo_set_shared_window(void *window);
+
 /* Check GL Extensions */
 bool glo_check_extension(const char* ext_name);
 

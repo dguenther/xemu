@@ -21,6 +21,11 @@
 
 #include "nv2a_int.h"
 
+#ifdef CONFIG_SWITCH
+#include "gl-owner.h"
+#include "hw/xbox/nv2a/pgraph/gl/renderer.h"
+#endif
+
 typedef struct RAMHTEntry {
     uint32_t handle;
     hwaddr instance;
@@ -453,7 +458,14 @@ void *pfifo_thread(void *arg)
 {
     NV2AState *d = (NV2AState *)arg;
 
+#ifdef CONFIG_SWITCH
+    switch_gl_owner_lock("pfifo_init");
+#endif
     pgraph_init_thread(d);
+#ifdef CONFIG_SWITCH
+    glo_set_current(NULL);
+    switch_gl_owner_unlock("pfifo_init");
+#endif
 
     rcu_register_thread();
 
@@ -461,6 +473,12 @@ void *pfifo_thread(void *arg)
     while (true) {
         d->pfifo.fifo_kick = false;
 
+#ifdef CONFIG_SWITCH
+        switch_gl_owner_lock("pfifo_loop");
+        if (g_nv2a_context_render) {
+            glo_set_current(g_nv2a_context_render);
+        }
+#endif
         pgraph_process_pending(d);
 
         if (!d->pfifo.halt) {
@@ -468,6 +486,10 @@ void *pfifo_thread(void *arg)
         }
 
         pgraph_process_pending_reports(d);
+#ifdef CONFIG_SWITCH
+        glo_set_current(NULL);
+        switch_gl_owner_unlock("pfifo_loop");
+#endif
 
         if (!d->pfifo.fifo_kick) {
             qemu_cond_broadcast(&d->pfifo.fifo_idle_cond);

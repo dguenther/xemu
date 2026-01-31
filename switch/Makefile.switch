@@ -137,11 +137,15 @@ INCLUDE := -I$(BUILD) \
 #---------------------------------------------------------------------------------
 
 # Switch-specific sources
+STUB_SRCS := $(filter-out switch/qemu-stubs/display.c, \
+    $(wildcard switch/qemu-stubs/*.c))
+
 SWITCH_SRCS := \
     switch/main-switch.c \
+    switch/gl-owner.c \
     switch/oslib-switch.c \
     switch/glib-compat.c \
-    $(wildcard switch/qemu-stubs/*.c) \
+    $(STUB_SRCS) \
     switch/vga-min.c \
     switch/event_notifier-switch.c \
     switch/noc_file_dialog_switch.c \
@@ -203,7 +207,8 @@ UTIL_SRCS := \
     util/block-helpers.c \
     util/aiocb.c \
     util/throttle.c \
-    util/timed-average.c
+    util/timed-average.c \
+    util/hexdump.c
 
 # Character device backends
 # Minimal set for Xbox emulation (serial devices use "null" backend)
@@ -244,12 +249,14 @@ QAPI_SRCS := \
     build/qapi/qapi-builtin-types.c \
     build/qapi/qapi-commands-block.c \
     build/qapi/qapi-types-common.c \
+    build/qapi/qapi-types-crypto.c \
     build/qapi/qapi-types-block-core.c \
     build/qapi/qapi-types-block.c \
     build/qapi/qapi-types-ui.c \
     build/qapi/qapi-types-audio.c \
     build/qapi/qapi-types-char.c \
     build/qapi/qapi-types-run-state.c \
+    build/qapi/qapi-types-sockets.c \
     build/qapi/qapi-types-virtio.c \
     build/qapi/qapi-types-machine-common.c \
     build/qapi/qapi-types-migration.c \
@@ -257,8 +264,14 @@ QAPI_SRCS := \
     build/qapi/qapi-visit-ui.c \
     build/qapi/qapi-visit-audio.c \
     build/qapi/qapi-visit-block.c \
+    build/qapi/qapi-visit-block-core.c \
+    build/qapi/qapi-visit-common.c \
+    build/qapi/qapi-visit-crypto.c \
+    build/qapi/qapi-visit-sockets.c \
     build/qapi/qapi-visit-virtio.c \
     build/qapi/qapi-visit-machine.c \
+    build/qapi/qapi-visit-machine-common.c \
+    build/qapi/qapi-visit-run-state.c \
     build/qapi/qapi-events-block.c \
     build/qapi/qapi-events-block-core.c \
     build/qapi/qapi-events-run-state.c \
@@ -504,7 +517,9 @@ UI_SRCS := \
 
 # Additional UI sources for full QEMU core build
 UI_SRCS_FULL := \
-    ui/xemu.c
+    ui/xemu.c \
+    ui/console.c \
+    ui/dmabuf.c
 
 # Audio sources (SDL only)
 AUDIO_SRCS := \
@@ -529,6 +544,7 @@ TCG_SRCS := \
     accel/tcg/cputlb.c \
     accel/tcg/tcg-runtime.c \
     accel/tcg/tcg-runtime-gvec.c \
+    accel/tcg/tb-maint.c \
     tcg/tcg.c \
     tcg/tcg-op.c \
     tcg/tcg-op-vec.c \
@@ -552,6 +568,7 @@ SYSTEM_SRCS := \
     system/runstate.c \
     system/runstate-action.c \
     system/datadir.c \
+    system/arch_init.c \
     system/globals.c \
     system/watchpoint.c \
     system/rtc.c \
@@ -564,6 +581,7 @@ UI_SRCS_STUBS := \
 # i386 target sources
 TARGET_I386_SRCS := \
     target/i386/cpu.c \
+    target/i386/cpu-sysemu.c \
     target/i386/gdbstub.c \
     target/i386/helper.c \
     target/i386/xsave_helper.c \
@@ -656,7 +674,7 @@ directories:
 #---------------------------------------------------------------------------------
 GENERATED_HEADERS := $(BUILD)/config-host.h $(BUILD)/config-target.h
 
-$(BUILD)/config-host.h: $(TOPDIR)/switch/config-switch.h
+$(BUILD)/config-host.h: $(TOPDIR)/switch/config-switch.h $(TOPDIR)/switch/Makefile.switch
 	@mkdir -p $(BUILD)
 	@echo "Generating $@..."
 	@echo "/* Auto-generated config-host.h for Switch build */" > $@
@@ -665,13 +683,14 @@ $(BUILD)/config-host.h: $(TOPDIR)/switch/config-switch.h
 	@echo "#include \"$(TOPDIR)/switch/config-switch.h\"" >> $@
 	@echo "#endif" >> $@
 
-$(BUILD)/config-target.h: $(TOPDIR)/switch/config-switch.h
+$(BUILD)/config-target.h: $(TOPDIR)/switch/config-switch.h $(TOPDIR)/switch/Makefile.switch
 	@mkdir -p $(BUILD)
 	@echo "Generating $@..."
 	@echo "/* Auto-generated config-target.h for Switch build */" > $@
 	@echo "#ifndef CONFIG_TARGET_H" >> $@
 	@echo "#define CONFIG_TARGET_H" >> $@
 	@echo "/* i386 target configuration */" >> $@
+	@echo "#define QEMU_ARCH QEMU_ARCH_I386" >> $@
 	@echo "#define TARGET_NAME \"i386\"" >> $@
 	@echo "#define TARGET_I386 1" >> $@
 	@echo "#define TARGET_LONG_BITS 32" >> $@

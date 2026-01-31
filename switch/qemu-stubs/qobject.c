@@ -42,24 +42,6 @@ void qapi_event_emit(int event, QDict *qdict)
     (void)qdict;
 }
 
-bool visit_type_q_obj_SHUTDOWN_arg_members(Visitor *v, q_obj_SHUTDOWN_arg *obj,
-                                           Error **errp)
-{
-    (void)v;
-    (void)obj;
-    (void)errp;
-    return true;
-}
-
-bool visit_type_q_obj_RESET_arg_members(Visitor *v, q_obj_RESET_arg *obj,
-                                        Error **errp)
-{
-    (void)v;
-    (void)obj;
-    (void)errp;
-    return true;
-}
-
 const QEnumLookup ObjectType_lookup = {
     .array = NULL,
     .special_features = NULL,

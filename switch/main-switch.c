@@ -23,12 +23,20 @@
 
 /* xemu HUD interface */
 #include "xui/xemu-hud.h"
+/* NV2A readiness (avoid heavy nv2a.h include in this TU) */
+extern bool nv2a_is_initialized(void);
 
 /* QEMU main entrypoint */
 #include "qemu-main.h"
 
 /* xemu display (SDL window handoff) */
 extern void xemu_switch_set_sdl_window(SDL_Window *window, SDL_GLContext context);
+extern void xemu_display_very_early_init(void);
+extern void xemu_display_init_semaphore(void);
+extern bool xemu_display_is_ready(void);
+extern void xemu_display_refresh(void);
+
+#include "gl-owner.h"
 
 /* xemu settings (populates g_config defaults and loads/saves TOML) */
 #include "xemu-settings.h"
@@ -392,11 +400,13 @@ static int check_required_files(void)
 
 static pthread_t qemu_thread;
 static int qemu_thread_started = 0;
+static int qemu_thread_exited = 0;
 
 static void switch_qemu_thread_cleanup(void *opaque)
 {
     (void)opaque;
     qemu_thread_started = 0;
+    qemu_thread_exited = 1;
     switch_log("Switch: QEMU thread exited\n");
 }
 
@@ -546,6 +556,9 @@ int main(int argc, char **argv)
     }
 
     xemu_switch_set_sdl_window(window, gl_context);
+    xemu_display_very_early_init();
+    xemu_display_init_semaphore();
+    SDL_GL_MakeCurrent(window, gl_context);
 
     SDL_GL_SetSwapInterval(1);
     switch_log("SDL2 GL context initialized (4.3 core)\n");
@@ -566,6 +579,9 @@ int main(int argc, char **argv)
     if (switch_log_stderr_enabled()) {
         fflush(stderr);
     }
+    switch_gl_owner_lock("switch_hud_init");
+    SDL_GL_MakeCurrent(NULL, NULL);
+    switch_gl_owner_unlock("switch_hud_init");
 
     /* Main loop */
     switch_log("Entering main loop\n");
@@ -575,6 +591,8 @@ int main(int argc, char **argv)
 
     static int frame_count = 0;
     int running = 1;
+    bool qemu_display_ready = false;
+    bool qemu_display_pending = false;
     while (running && appletMainLoop()) {
         if (frame_count < 5 || frame_count % 60 == 0) {
             switch_log("Frame %d\n", frame_count);
@@ -593,44 +611,71 @@ int main(int argc, char **argv)
             running = 0;
         }
 
-        /* Process SDL events (mostly for compatibility, but not critical on Switch) */
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            /* Pass events to HUD for ImGui processing */
-            xemu_hud_process_sdl_events(&event);
-
-            if (event.type == SDL_QUIT) {
-                running = 0;
-            }
-        }
-
-        /* Render the HUD */
-        if (frame_count <= 3) {
-            switch_log("Frame %d: calling xemu_hud_render...\n", frame_count - 1);
-            if (switch_log_stderr_enabled()) {
-                fflush(stderr);
-            }
-        }
-        xemu_hud_render();
-        if (frame_count <= 3) {
-            switch_log("Frame %d: xemu_hud_render done, calling swap...\n", frame_count - 1);
-            if (switch_log_stderr_enabled()) {
-                fflush(stderr);
-            }
-        }
-
-        /* Swap SDL GL buffers */
-        SDL_GL_SwapWindow(window);
-        if (frame_count <= 3) {
-            switch_log("Frame %d: swap done\n", frame_count - 1);
-            if (switch_log_stderr_enabled()) {
-                fflush(stderr);
-            }
-        }
-
         if (switch_consume_boot_bios_request()) {
             switch_log("Boot requested: starting Xbox BIOS...\n");
             switch_run_xemu_bios();
+            if (qemu_thread_started && !qemu_display_ready) {
+                qemu_display_pending = true;
+                switch_log("Waiting for xemu display init...\n");
+            }
+        }
+
+        if (qemu_display_pending && !qemu_display_ready &&
+            xemu_display_is_ready()) {
+            qemu_display_ready = true;
+            qemu_display_pending = false;
+            switch_log("xemu display init complete\n");
+        }
+
+        if (qemu_display_ready && !qemu_thread_exited) {
+            static int refresh_log_count;
+            if (refresh_log_count < 5) {
+                switch_log("Switch: calling xemu_display_refresh (%d)\n",
+                           refresh_log_count);
+                refresh_log_count++;
+            }
+            if (nv2a_is_initialized()) {
+                xemu_display_refresh();
+            } else if (refresh_log_count < 5) {
+                switch_log("Switch: waiting for NV2A init before refresh\n");
+            }
+        } else {
+            /* Process SDL events for HUD before QEMU starts */
+            SDL_Event event;
+            while (SDL_PollEvent(&event)) {
+                xemu_hud_process_sdl_events(&event);
+                if (event.type == SDL_QUIT) {
+                    running = 0;
+                }
+            }
+
+            /* Render the HUD */
+            if (frame_count <= 3) {
+                switch_log("Frame %d: calling xemu_hud_render...\n", frame_count - 1);
+                if (switch_log_stderr_enabled()) {
+                    fflush(stderr);
+                }
+            }
+            switch_gl_owner_lock("switch_preboot_frame");
+            SDL_GL_MakeCurrent(window, gl_context);
+            xemu_hud_render();
+            if (frame_count <= 3) {
+                switch_log("Frame %d: xemu_hud_render done, calling swap...\n", frame_count - 1);
+                if (switch_log_stderr_enabled()) {
+                    fflush(stderr);
+                }
+            }
+
+            /* Swap SDL GL buffers */
+            SDL_GL_SwapWindow(window);
+            SDL_GL_MakeCurrent(NULL, NULL);
+            switch_gl_owner_unlock("switch_preboot_frame");
+            if (frame_count <= 3) {
+                switch_log("Frame %d: swap done\n", frame_count - 1);
+                if (switch_log_stderr_enabled()) {
+                    fflush(stderr);
+                }
+            }
         }
     }
 

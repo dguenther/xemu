@@ -164,12 +164,36 @@ static void nv2a_get_params(VGACommonState *s, VGADisplayParams *params)
 
 const uint8_t *nv2a_get_dac_palette(void)
 {
+    static uint8_t default_palette[256 * 3];
+    static bool palette_inited;
+
+    if (!palette_inited) {
+        for (int i = 0; i < 256; i++) {
+            default_palette[i * 3 + 0] = i;
+            default_palette[i * 3 + 1] = i;
+            default_palette[i * 3 + 2] = i;
+        }
+        palette_inited = true;
+    }
+
+    if (!g_nv2a) {
+        return default_palette;
+    }
+
     return g_nv2a->puserdac.palette;
 }
 
 int nv2a_get_screen_off(void)
 {
+    if (!g_nv2a) {
+        return 1;
+    }
     return g_nv2a->vga.sr[VGA_SEQ_CLOCK_MODE] & VGA_SR01_SCREEN_OFF;
+}
+
+bool nv2a_is_initialized(void)
+{
+    return g_nv2a != NULL;
 }
 
 static void nv2a_vga_gfx_update(void *opaque)

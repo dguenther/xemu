@@ -84,6 +84,11 @@ const char *xemu_settings_get_base_path(void)
         return base_path;
     }
 
+#ifdef CONFIG_SWITCH
+    base_path = g_strdup_printf("%s/", CONFIG_PREFIX);
+    fprintf(stderr, "%s: base path: %s\n", __func__, base_path);
+    return base_path;
+#else
     char *base = xemu_settings_detect_portable_mode()
                  ? SDL_GetBasePath()
                  : SDL_GetPrefPath("xemu", "xemu");
@@ -92,6 +97,7 @@ const char *xemu_settings_get_base_path(void)
     SDL_free(base);
     fprintf(stderr, "%s: base path: %s\n", __func__, base_path);
     return base_path;
+#endif
 }
 
 const char *xemu_settings_get_path(void)

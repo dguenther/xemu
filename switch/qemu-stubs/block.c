@@ -15,51 +15,14 @@ typedef struct QEMUBH QEMUBH;
 typedef struct BlockDriverState BlockDriverState;
 typedef struct BlockDevOps BlockDevOps;
 
-enum BlockAcctType { 
-    BLOCK_ACCT_READ, 
-    BLOCK_ACCT_WRITE, 
-    BLOCK_ACCT_FLUSH, 
-    BLOCK_ACCT_UNMAP, 
-    BLOCK_ACCT_ZONE_REPORT, 
-    BLOCK_ACCT_ZONE_MGMT 
+enum BlockAcctType {
+    BLOCK_ACCT_READ,
+    BLOCK_ACCT_WRITE,
+    BLOCK_ACCT_FLUSH,
+    BLOCK_ACCT_UNMAP,
+    BLOCK_ACCT_ZONE_REPORT,
+    BLOCK_ACCT_ZONE_MGMT
 };
-
-QemuOpts * __attribute__((weak)) drive_add(BlockInterfaceType type, int index, const char *file,
-                    const char *optstr)
-{
-    (void)type;
-    (void)index;
-    (void)file;
-    (void)optstr;
-    return NULL;
-}
-
-void __attribute__((weak)) override_max_devs(BlockInterfaceType type, int max_devs)
-{
-    (void)type;
-    (void)max_devs;
-}
-
-DriveInfo * __attribute__((weak)) drive_new(QemuOpts *arg, BlockInterfaceType block_default_type,
-                     Error **errp)
-{
-    static DriveInfo dummy_drive;
-    (void)errp;
-    dummy_drive.type = block_default_type;
-    dummy_drive.opts = arg;
-    return &dummy_drive;
-}
-
-DriveInfo * __attribute__((weak)) drive_get_by_index(BlockInterfaceType type, int index)
-{
-    (void)type;
-    (void)index;
-    return NULL;
-}
-
-void __attribute__((weak)) drive_check_orphaned(void)
-{
-}
 
 int qdev_device_help(QemuOpts *opts)
 {
@@ -72,82 +35,6 @@ DeviceState *qdev_device_add(QemuOpts *opts, Error **errp)
     (void)opts;
     (void)errp;
     return NULL;
-}
-
-BlockAcctStats * __attribute__((weak)) blk_get_stats(BlockBackend *blk)
-{
-    (void)blk;
-    return NULL;
-}
-
-void __attribute__((weak)) block_acct_start(BlockAcctStats *stats, void *cookie, int64_t bytes, enum BlockAcctType type)
-{
-    (void)stats; (void)cookie; (void)bytes; (void)type;
-}
-
-void __attribute__((weak)) block_acct_done(BlockAcctStats *stats, void *cookie)
-{
-    (void)stats; (void)cookie;
-}
-
-void __attribute__((weak)) block_acct_failed(BlockAcctStats *stats, void *cookie)
-{
-    (void)stats; (void)cookie;
-}
-
-void __attribute__((weak)) block_acct_invalid(BlockAcctStats *stats, enum BlockAcctType type)
-{
-    (void)stats; (void)type;
-}
-
-AioContext * __attribute__((weak)) blk_get_aio_context(BlockBackend *blk)
-{
-    (void)blk;
-    return NULL;
-}
-
-BlockAIOCB * __attribute__((weak)) blk_aio_preadv(BlockBackend *blk, int64_t offset, QEMUIOVector *qiov, int flags, void *cb, void *opaque)
-{
-    (void)blk; (void)offset; (void)qiov; (void)flags; (void)cb; (void)opaque;
-    return NULL;
-}
-
-BlockAIOCB * __attribute__((weak)) blk_aio_pwritev(BlockBackend *blk, int64_t offset, QEMUIOVector *qiov, int flags, void *cb, void *opaque)
-{
-    (void)blk; (void)offset; (void)qiov; (void)flags; (void)cb; (void)opaque;
-    return NULL;
-}
-
-void __attribute__((weak)) blk_aio_cancel_async(BlockAIOCB *acb)
-{
-    (void)acb;
-}
-
-void __attribute__((weak)) qemu_aio_unref(void *p)
-{
-    (void)p;
-}
-
-void __attribute__((weak)) blk_aio_cancel(BlockAIOCB *acb)
-{
-    (void)acb;
-}
-
-int64_t __attribute__((weak)) blk_get_geometry(BlockBackend *blk)
-{
-    (void)blk;
-    return 0;
-}
-
-bool __attribute__((weak)) blk_is_writable(BlockBackend *blk)
-{
-    (void)blk;
-    return true;
-}
-
-void __attribute__((weak)) blk_set_dev_ops(BlockBackend *blk, const BlockDevOps *ops, void *opaque)
-{
-    (void)blk; (void)ops; (void)opaque;
 }
 
 void __attribute__((weak)) blk_iostatus_enable(BlockBackend *blk)
@@ -269,15 +156,6 @@ BlockDriverState * __attribute__((weak)) bdrv_first(BdrvNextIterator *it)
     return NULL;
 }
 
-BlockDriverState * __attribute__((weak)) bdrv_next(BdrvNextIterator *it)
-{
-    (void)it;
-    return NULL;
-}
-
-void __attribute__((weak)) blk_commit_all(void)
-{
-}
 /* Additional block stubs needed by system/vl.c and blockdev.c */
 int __attribute__((weak)) bdrv_snapshot_delete(BlockDriverState *bs, const char *snapshot_id, const char *name, Error **errp)
 {

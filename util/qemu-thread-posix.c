@@ -560,6 +560,14 @@ void qemu_thread_create(QemuThread *thread, const char *name,
         error_exit(err, __func__);
     }
 
+#ifdef CONFIG_SWITCH
+    /* Switch default stacks are small; use a larger stack for QEMU threads. */
+    {
+        const size_t stack_size = 16 * 1024 * 1024;
+        pthread_attr_setstacksize(&attr, stack_size);
+    }
+#endif
+
     if (mode == QEMU_THREAD_DETACHED) {
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     }

@@ -1,16 +1,11 @@
 /*
- * QEMU Stubs for Nintendo Switch - Utility Functions  
+ * QEMU Stubs for Nintendo Switch - Utility Functions
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include "qemu/osdep.h"
 #include "common.h"
-
-void qemu_hexdump_line(char *buf, size_t len, const void *mem, size_t mem_size, unsigned int unit_size, unsigned int units_per_line)
-{
-    (void)buf; (void)len; (void)mem; (void)mem_size; (void)unit_size; (void)units_per_line;
-}
 
 void qemu_notify_event(void)
 {
