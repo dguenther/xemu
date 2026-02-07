@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>  /* For access() */
+#include "glib-compat.h"
 
 /*
  * Only include real QEMU headers from C code.
@@ -142,28 +143,6 @@ static inline int qemu_access(const char *path, int mode) {
 #endif
 
 /*
- * GRegex stub (from GLib, but we don't have full glib regex support)
- */
-typedef void GRegex;
-
-static inline GRegex *g_regex_new(const char *pattern, int compile_options,
-                                   int match_options, void *error) {
-    (void)pattern; (void)compile_options; (void)match_options; (void)error;
-    return NULL;
-}
-
-static inline void g_regex_unref(GRegex *regex) { (void)regex; }
-
-static inline bool g_regex_match(GRegex *regex, const char *string,
-                                  int match_options, void *match_info) {
-    (void)regex; (void)string; (void)match_options; (void)match_info;
-    return true;  /* Match everything when no regex */
-}
-
-#define G_REGEX_CASELESS 0
-#define G_REGEX_OPTIMIZE 0
-
-/*
  * QemuConsole stub
  */
 #ifdef __cplusplus
@@ -236,44 +215,6 @@ int nv2a_get_screen_off(void);
         struct type **tqe_prev; \
     }
 #endif
-
-/*
- * GMatchInfo stub
- */
-typedef void GMatchInfo;
-
-static inline bool g_match_info_matches(GMatchInfo *match_info) {
-    (void)match_info;
-    return true;
-}
-
-static inline void g_match_info_free(GMatchInfo *match_info) {
-    (void)match_info;
-}
-
-typedef int GRegexCompileFlags;
-typedef int GRegexMatchFlags;
-
-/*
- * Additional GDateTime functions
- */
-typedef struct _GDateTime GDateTime;
-typedef struct _GTimeZone GTimeZone;
-
-static inline GDateTime *g_date_time_new_from_unix_local(int64_t t) {
-    (void)t;
-    return NULL;
-}
-
-/*
- * g_utf16_to_utf8 stub
- */
-static inline char *g_utf16_to_utf8(const uint16_t *str, long len,
-                                     long *items_read, long *items_written,
-                                     void *error) {
-    (void)str; (void)len; (void)items_read; (void)items_written; (void)error;
-    return NULL;
-}
 
 /*
  * pcap constants

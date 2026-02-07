@@ -180,7 +180,7 @@ We started with Phase 1 (35 critical functions) instead of trying to stub all 17
 
 ### Build Test
 ```bash
-podman run --rm -v "$(pwd):/src:Z" -w /src devkita64-pixman:0.42.2 bash -c '
+podman run --rm -v "$(pwd):/src:Z" -w /src localhost/devkita64-glib:latest bash -c '
 source $DEVKITPRO/switchvars.sh
 make -f switch/Makefile.switch -j4
 '

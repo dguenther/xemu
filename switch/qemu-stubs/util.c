@@ -26,13 +26,3 @@ void *iohandler_get_aio_context(void)
 {
     return NULL;
 }
-
-GSource *g_source_ref(GSource *source)
-{
-    return source;
-}
-
-void g_source_unref(GSource *source)
-{
-    (void)source;
-}

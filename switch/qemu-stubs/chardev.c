@@ -26,10 +26,3 @@ void *qemu_chr_open_fd(int fd_in, int fd_out)
 }
 
 void *qemu_main_context = NULL;
-
-/* Stub for g_source_destroy - needed by chardev but not in glib-compat */
-void g_source_destroy(GSource *source)
-{
-    (void)source;
-    /* No-op stub */
-}

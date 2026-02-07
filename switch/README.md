@@ -33,22 +33,21 @@ sudo dkp-pacman -S switch-dev switch-sdl2 switch-mesa switch-glad switch-zlib sw
 ### Using Podman/Docker (Recommended)
 
 ```bash
-# Build custom devkitA64 image with pixman
-podman build -t devkita64-pixman:0.42.2 -f switch/Dockerfile switch
+# Build local devkitA64 image
+podman build -t localhost/devkita64-glib:latest -f switch/Dockerfile switch
 
 # Run build in container (from xemu root directory)
-podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 \
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu localhost/devkita64-glib:latest \
     make -f switch/Makefile.switch
 
 # Or build the Switch abstraction layer files only:
-podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 bash -c '
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu localhost/devkita64-glib:latest bash -c '
 source $DEVKITPRO/switchvars.sh
 ARCH="-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIC"
 CFLAGS="-g -Wall -O2 -ffunction-sections $ARCH"
 CFLAGS="$CFLAGS -DCONFIG_SWITCH=1 -D__SWITCH__"
 CFLAGS="$CFLAGS -I/xemu/switch -I$DEVKITPRO/libnx/include"
 CFLAGS="$CFLAGS -I$DEVKITPRO/portlibs/switch/include/SDL2"
-aarch64-none-elf-gcc $CFLAGS -c switch/glib-compat.c -o switch/glib-compat.o
 aarch64-none-elf-gcc $CFLAGS -c switch/oslib-switch.c -o switch/oslib-switch.o
 aarch64-none-elf-gcc $CFLAGS -c switch/main-switch.c -o switch/main-switch.o
 '
@@ -82,10 +81,10 @@ switch/
 ├── Makefile.switch      # Main build file for Switch
 ├── config-switch.h      # Hardcoded build configuration
 ├── platform_stubs.h     # Stubs for missing POSIX features
-├── glib-compat.h        # GLib compatibility layer header
-├── glib-compat.c        # GLib compatibility implementations
+├── glib.h               # Switch wrapper for GLib headers
 ├── oslib-switch.c       # OS abstraction layer for Switch
 ├── main-switch.c        # Switch-specific main entry point
+├── qemu-types-stub.h    # C/C++ stubs used by Switch UI build
 ├── qemu-stubs/          # Modular QEMU stub implementations (37 files)
 │   ├── common.h         # Shared header for stub files
 │   ├── trace.c          # Trace system stubs
@@ -191,7 +190,7 @@ Ensure all switch-* packages are installed via dkp-pacman.
 3. Run `addr2line` inside the devkitpro container:
 
 ```bash
-podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 \
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu localhost/devkita64-glib:latest \
   /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line \
   -f -e /xemu/dist-switch/xemu.elf 0xPC_OFFSET
 ```
@@ -199,7 +198,7 @@ podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 \
 Example (if `pc offset` is `0x5d4fa0`):
 
 ```bash
-podman run --rm -v "$(pwd):/xemu:Z" -w /xemu devkita64-pixman:0.42.2 \
+podman run --rm -v "$(pwd):/xemu:Z" -w /xemu localhost/devkita64-glib:latest \
   /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line \
   -f -e /xemu/dist-switch/xemu.elf 0x5d4fa0
 ```

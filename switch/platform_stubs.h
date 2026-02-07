@@ -334,6 +334,12 @@ static inline time_t timegm(struct tm *tm)
 #endif
 
 /*
+ * getuid/getppid - POSIX functions used by GLib
+ * Declared in newlib's unistd.h but not implemented.
+ * Implementations are provided in oslib-switch.c
+ */
+
+/*
  * pthread_kill - send signal to thread (not supported on Switch)
  * Declared but may not be fully implemented in newlib
  */

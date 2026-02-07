@@ -73,8 +73,7 @@ CFLAGS += -DXBOX=1 \
           -DCOMPILING_PER_TARGET \
           -DCONFIG_TARGET=\"config-target.h\" \
           -include $(TOPDIR)/switch/config-switch.h \
-          -include $(TOPDIR)/switch/platform_stubs.h \
-          -include $(TOPDIR)/switch/glib-compat.h
+          -include $(TOPDIR)/switch/platform_stubs.h
 
 CXXFLAGS := $(CFLAGS) -fno-rtti -fexceptions -std=c++17
 
@@ -87,7 +86,9 @@ LDFLAGS := -specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) \
 # Libraries
 #---------------------------------------------------------------------------------
 # Note: Order matters for linking. glad must come before EGL/GL libs.
-LIBS := -lglad -lEGL -lSDL2 -lglapi -ldrm_nouveau -lpixman-1 \
+# glib-2.0 provides GLib functionality (hash tables, strings, etc.)
+# GLib requires pcre2-8 for regex, iconv for character encoding, and intl for i18n
+LIBS := -lglib-2.0 -lpcre2-8 -liconv -lintl -lglad -lEGL -lSDL2 -lglapi -ldrm_nouveau -lpixman-1 \
         -lnx -lm -lpthread
 
 #---------------------------------------------------------------------------------
@@ -131,7 +132,9 @@ INCLUDE := -I$(BUILD) \
            $(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
            $(foreach dir,$(LIBDIRS),-I$(dir)/include) \
            -I$(PORTLIBS)/include/pixman-1 \
-           -I$(DEVKITPRO)/portlibs/switch/include/SDL2
+           -I$(DEVKITPRO)/portlibs/switch/include/SDL2 \
+           -I$(DEVKITPRO)/portlibs/switch/include/glib-2.0 \
+           -I$(DEVKITPRO)/portlibs/switch/lib/glib-2.0/include
 
 #---------------------------------------------------------------------------------
 # Source files - Phase 1: Minimal bootstrap
@@ -144,7 +147,6 @@ SWITCH_SRCS := \
     switch/main-switch.c \
     switch/gl-owner.c \
     switch/oslib-switch.c \
-    switch/glib-compat.c \
     $(STUB_SRCS) \
     switch/vga-min.c \
     switch/event_notifier-switch.c \

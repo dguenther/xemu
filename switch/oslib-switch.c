@@ -30,6 +30,20 @@
 typedef struct Error Error;
 
 /*
+ * POSIX user/process ID functions - not available on Switch
+ * GLib uses these for various internal operations
+ */
+uid_t getuid(void)
+{
+    return 1000;  /* Fake non-root user */
+}
+
+pid_t getppid(void)
+{
+    return 1;  /* Fake parent pid */
+}
+
+/*
  * Pipe stub for Switch
  * libnx doesn't have pipe(), but we can provide a stub that fails gracefully
  */
