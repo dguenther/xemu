@@ -35,6 +35,15 @@ uint64_t pfb_read(void *opaque, hwaddr addr, unsigned int size)
         break;
     default:
         r = d->pfb.regs[addr];
+#ifdef CONFIG_SWITCH
+        // Log first 20 reads from unknown PFB registers
+        static uint64_t pfb_unknown_read_count = 0;
+        if (pfb_unknown_read_count < 20) {
+            pfb_unknown_read_count++;
+            fprintf(stderr, "Switch: PFB read addr=0x%05lx val=0x%08lx (echoing last write)\n",
+                    (unsigned long)addr, (unsigned long)r);
+        }
+#endif
         break;
     }
 
