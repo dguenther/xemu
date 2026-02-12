@@ -371,11 +371,6 @@ const char *qemu_hw_version(void)
     return "1.0";
 }
 
-void register_global_state(void)
-{
-    switch_log("STUB: register_global_state called\n");
-}
-
 void __attribute__((weak)) qapi_free_BootConfiguration(BootConfiguration *obj)
 {
     switch_log("STUB: qapi_free_BootConfiguration called\n");

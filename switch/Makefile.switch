@@ -38,6 +38,25 @@ else
 endif
 include $(DEVKITPRO)/libnx/switch_rules
 
+# -- ccache support: use ccache if available in the environment (fast cache for repeated builds)
+CCACHE := $(shell command -v ccache 2>/dev/null || true)
+ifeq ($(CCACHE),)
+$(info ccache not found; builds will not use ccache)
+else
+# place ccache cache inside the project so it persists across container runs
+CCACHE_DIR ?= $(TOPDIR)/.ccache
+CCACHE_BASEDIR ?= $(TOPDIR)
+export CCACHE_DIR CCACHE_BASEDIR
+# prepend ccache to the compiler commands provided by the included rules
+CC := ccache $(CC)
+CXX := ccache $(CXX)
+$(info ccache enabled; CCACHE_DIR=$(CCACHE_DIR))
+endif
+
+# default CCACHE_DIR/BASEDIR so users can override via env if desired
+CCACHE_DIR ?= $(TOPDIR)/.ccache
+CCACHE_BASEDIR ?= $(TOPDIR)
+
 #---------------------------------------------------------------------------------
 # Build configuration
 #---------------------------------------------------------------------------------
@@ -233,7 +252,13 @@ UTIL_SRCS := \
     util/hexdump.c \
     event-loop-base.c \
     util/main-loop.c \
-    util/defer-call.c
+    util/defer-call.c \
+    util/yank.c \
+    util/hbitmap.c \
+    util/sha1.c \
+    util/rc4.c \
+    page-target.c \
+    job.c
 
 # Character device backends
 # Minimal set for Xbox emulation (serial devices use "null" backend)
@@ -286,6 +311,10 @@ QAPI_SRCS := \
     build/qapi/qapi-types-machine-common.c \
     build/qapi/qapi-types-migration.c \
     build/qapi/qapi-types-machine.c \
+    build/qapi/qapi-types-qom.c \
+    build/qapi/qapi-types-job.c \
+    build/qapi/qapi-types-authz.c \
+    build/qapi/qapi-types-yank.c \
     build/qapi/qapi-visit-ui.c \
     build/qapi/qapi-visit-audio.c \
     build/qapi/qapi-visit-block.c \
@@ -298,10 +327,17 @@ QAPI_SRCS := \
     build/qapi/qapi-visit-machine-common.c \
     build/qapi/qapi-visit-run-state.c \
     build/qapi/qapi-visit-misc.c \
+    build/qapi/qapi-visit-qom.c \
+    build/qapi/qapi-visit-migration.c \
+    build/qapi/qapi-visit-job.c \
+    build/qapi/qapi-visit-authz.c \
+    build/qapi/qapi-visit-yank.c \
     build/qapi/qapi-events-block.c \
     build/qapi/qapi-events-block-core.c \
     build/qapi/qapi-events-misc.c \
     build/qapi/qapi-events-run-state.c \
+    build/qapi/qapi-events-migration.c \
+    build/qapi/qapi-events-job.c \
     build/trace/trace-block.c \
     build/trace/trace-util.c \
     build/trace/trace-hw_usb.c \
@@ -363,6 +399,8 @@ BLOCK_SRCS := \
     block/aio_task.c \
     block/commit.c \
     block/io.c \
+    block/snapshot.c \
+    block/progress_meter.c \
     blockjob.c
 
 # HW base sources
@@ -391,6 +429,7 @@ HW_BASE_SRCS := \
     hw/core/sysbus.c \
     hw/core/machine.c \
     hw/core/vmstate-if.c \
+    hw/core/numa.c \
     hw/acpi/aml-build.c \
     hw/acpi/core.c \
     hw/acpi/acpi_interface.c \
@@ -513,7 +552,8 @@ XBOX_HW_SRCS := \
     hw/xbox/nv2a/pgraph/glsl/vsh-ff.c \
     hw/xbox/nv2a/pgraph/glsl/vsh-prog.c \
     hw/xbox/nv2a/pgraph/thirdparty/gloffscreen/common.c \
-    hw/xbox/nv2a/pgraph/thirdparty/gloffscreen/sdl.c
+    hw/xbox/nv2a/pgraph/thirdparty/gloffscreen/sdl.c \
+    hw/xbox/eeprom_generation.c
 
 # ImGui sources
 IMGUI_SRCS := \
@@ -537,6 +577,7 @@ FPNG_SRCS := \
 
 # UI sources (xemu-specific) - HUD-only, no QEMU dependencies
 UI_SRCS := \
+    ui/xemu-input.c \
     ui/xemu-settings.cc \
     ui/xemu-widescreen.c \
     ui/xui/main.cc \
@@ -559,6 +600,7 @@ UI_SRCS := \
     ui/xui/animation.cc \
     ui/xui/menubar.cc \
     ui/input.c \
+    ui/input-keymap.c \
     ui/kbd-state.c \
     ui/keymaps.c
 
@@ -622,6 +664,8 @@ SYSTEM_SRCS := \
     system/globals.c \
     system/watchpoint.c \
     system/rtc.c \
+    system/qdev-monitor.c \
+    system/dirtylimit.c \
     system/main.c
 
 
@@ -654,6 +698,45 @@ TARGET_I386_SRCS := \
     target/i386/tcg/sysemu/svm_helper.c \
     target/i386/tcg/sysemu/tcg-cpu.c
 
+MIGRATION_SRCS := \
+    migration/migration.c \
+    migration/block-dirty-bitmap.c \
+    migration/ram.c \
+    migration/postcopy-ram.c \
+    migration/qemu-file.c \
+    migration/options.c \
+    migration/xbzrle.c \
+    migration/migration-stats.c \
+    migration/page_cache.c \
+    migration/multifd.c \
+    migration/multifd-nocomp.c \
+    migration/multifd-zero-page.c \
+    migration/savevm.c \
+    migration/channel-block.c \
+    migration/file.c \
+    migration/cpu-throttle.c \
+    migration/vmstate.c \
+    migration/vmstate-types.c \
+    migration/channel.c \
+    migration/yank_functions.c \
+    migration/global_state.c \
+    migration/fd.c
+
+REPLAY_SRCS := \
+    replay/replay.c \
+    replay/replay-snapshot.c \
+    replay/replay-events.c \
+    replay/replay-internal.c \
+    replay/replay-char.c \
+    replay/replay-input.c
+
+IO_SRCS := \
+    io/channel.c \
+    io/channel-buffer.c \
+    io/channel-file.c \
+    io/channel-watch.c \
+    io/channel-util.c \
+    io/task.c
 
 TRACE_SRCS := \
     trace/control.c
@@ -662,8 +745,7 @@ TRACE_SRCS := \
 ALL_SRCS := \
     $(SWITCH_SRCS) \
     $(IMGUI_SRCS) \
-    $(IMPLOT_SRCS) \
-    $(FPNG_SRCS) \
+	$(FPNG_SRCS) \
     $(UI_SRCS) \
     $(UI_SRCS_FULL) \
     $(UTIL_SRCS) \
@@ -684,6 +766,9 @@ ALL_SRCS := \
     $(TCG_SRCS) \
     $(MEMORY_SRCS) \
     $(TARGET_I386_SRCS) \
+    $(MIGRATION_SRCS) \
+    $(REPLAY_SRCS) \
+    $(IO_SRCS) \
     $(TRACE_SRCS) \
     $(SYSTEM_SRCS)
 
@@ -703,6 +788,16 @@ OFILES_S   := $(addprefix $(BUILD)/,$(SFILES:.s=.o))
 OFILES     := $(OFILES_C) $(OFILES_CC) $(OFILES_CPP) $(OFILES_S)
 DFILES     := $(OFILES:.o=.d)
 
+# Build implot as a separate static archive so it only rebuilds when its sources change
+IMPLOT_OBJS := $(addprefix $(BUILD)/,$(IMPLOT_SRCS:.cpp=.o))
+$(BUILD)/libimplot.a: $(IMPLOT_OBJS)
+	@echo "[`date +%H:%M:%S.%3N`] Archiving $@..."
+	@$(AR) rcs $@ $(IMPLOT_OBJS)
+	@echo "[`date +%H:%M:%S.%3N`] Built $@"
+
+# Add archive to link inputs (keep objects out of ALL_SRCS so we don't duplicate)
+OFILES += $(BUILD)/libimplot.a
+
 #---------------------------------------------------------------------------------
 # Build rules
 #---------------------------------------------------------------------------------
@@ -716,6 +811,7 @@ directories:
 	@mkdir -p $(BUILD)
 	@mkdir -p $(OUTDIR)
 	@mkdir -p $(dir $(OFILES))
+	@mkdir -p $(CCACHE_DIR)
 
 #---------------------------------------------------------------------------------
 # Generated headers - Create config-host.h and config-target.h wrappers
@@ -764,30 +860,34 @@ $(BUILD)/$(TARGET).nacp:
 	@nacptool --create "$(APP_TITLE)" "$(APP_AUTHOR)" "$(APP_VERSION)" $@
 
 $(OUTDIR)/$(TARGET).elf: $(OFILES) $(BUILD)/$(TARGET).nacp
-	@echo "Linking $@..."
+	@echo "[`date +%H:%M:%S.%3N`] Linking $@..."
 	@mkdir -p $(OUTDIR)
 	@$(CXX) $(LDFLAGS) $(OFILES) $(LIBPATHS) $(LIBS) -o $@
-	@echo "Built $@"
+	@echo "[`date +%H:%M:%S.%3N`] Built $@"
 
 $(BUILD)/%.o: $(TOPDIR)/%.c $(GENERATED_HEADERS)
-	@echo "Compiling $<..."
+	@echo "[`date +%H:%M:%S.%3N`] Compiling $<..."
 	@mkdir -p $(dir $@)
 	@$(CC) -MMD -MP -MF $(BUILD)/$*.d $(CFLAGS) $(INCLUDE) -c $< -o $@
+	@echo "[`date +%H:%M:%S.%3N`] Done $@"
 
 $(BUILD)/%.o: $(TOPDIR)/%.cc $(GENERATED_HEADERS)
-	@echo "Compiling $<..."
+	@echo "[`date +%H:%M:%S.%3N`] Compiling $<..."
 	@mkdir -p $(dir $@)
 	@$(CXX) -MMD -MP -MF $(BUILD)/$*.d $(CXXFLAGS) $(INCLUDE) -c $< -o $@
+	@echo "[`date +%H:%M:%S.%3N`] Done $@"
 
 $(BUILD)/%.o: $(TOPDIR)/%.cpp $(GENERATED_HEADERS)
-	@echo "Compiling $<..."
+	@echo "[`date +%H:%M:%S.%3N`] Compiling $<..."
 	@mkdir -p $(dir $@)
 	@$(CXX) -MMD -MP -MF $(BUILD)/$*.d $(CXXFLAGS) $(INCLUDE) -c $< -o $@
+	@echo "[`date +%H:%M:%S.%3N`] Done $@"
 
 $(BUILD)/%.o: $(TOPDIR)/%.s
-	@echo "Assembling $<..."
+	@echo "[`date +%H:%M:%S.%3N`] Assembling $<..."
 	@mkdir -p $(dir $@)
 	@$(CC) -MMD -MP -MF $(BUILD)/$*.d -x assembler-with-cpp $(ASFLAGS) -c $< -o $@
+	@echo "[`date +%H:%M:%S.%3N`] Done $@"
 
 clean:
 	@echo "Cleaning..."

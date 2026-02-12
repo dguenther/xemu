@@ -47,12 +47,6 @@ void qapi_event_emit(int event, QDict *qdict)
     (void)qdict;
 }
 
-const QEnumLookup ObjectType_lookup = {
-    .array = NULL,
-    .special_features = NULL,
-    .size = 0,
-};
-
 bool visit_type_ChardevBackend(Visitor *v, const char *name, void **obj, Error **errp)
 {
     switch_log("STUB: visit_type_ChardevBackend called\n");
@@ -61,23 +55,6 @@ bool visit_type_ChardevBackend(Visitor *v, const char *name, void **obj, Error *
     (void)obj;
     (void)errp;
     return true;
-}
-
-bool visit_type_ObjectOptions(Visitor *v, const char *name,
-                              ObjectOptions **obj, Error **errp)
-{
-    switch_log("STUB: visit_type_ObjectOptions called\n");
-    (void)v;
-    (void)name;
-    (void)obj;
-    (void)errp;
-    return true;
-}
-
-void qapi_free_ObjectOptions(ObjectOptions *obj)
-{
-    switch_log("STUB: qapi_free_ObjectOptions called\n");
-    (void)obj;
 }
 
 bool visit_type_CompatPolicy_members(Visitor *v, CompatPolicy *obj,
@@ -129,13 +106,5 @@ void qmp_marshal_set_action(QDict *args, QObject **ret, Error **errp)
     switch_log("STUB: qmp_marshal_set_action called\n");
     (void)args;
     (void)ret;
-    (void)errp;
-}
-
-void qmp_device_add(QDict *qdict, QObject **ret_data, Error **errp)
-{
-    switch_log("STUB: qmp_device_add called\n");
-    (void)qdict;
-    (void)ret_data;
     (void)errp;
 }

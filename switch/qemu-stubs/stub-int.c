@@ -139,3 +139,6 @@ SWITCH_STUB_INT(x86_cpu_write_elf64_qemunote)
 SWITCH_STUB_INT(x86_cpus_init)
 SWITCH_STUB_INT(x86_register_ferr_irq)
 SWITCH_STUB_INT(xemu_input_set_test_mode)
+SWITCH_STUB_INT(colo_incoming_co)
+SWITCH_STUB_INT(colo_shutdown)
+

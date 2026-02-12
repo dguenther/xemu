@@ -80,3 +80,8 @@ void pcibus_dev_print(Monitor *mon, DeviceState *dev, int indent)
     (void)dev;
     (void)indent;
 }
+
+void monitor_fd_param(void)
+{
+    switch_log("STUB: monitor_fd_param called\n");
+}

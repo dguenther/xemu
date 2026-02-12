@@ -23,22 +23,6 @@ void disas(FILE *out, const void *code, size_t size)
 
 bool qtest_allowed = false;
 
-void ram_block_notify_add(void *host, size_t size, size_t max_size)
-{
-    switch_log("STUB: ram_block_notify_add called\n");
-    (void)host;
-    (void)size;
-    (void)max_size;
-}
-
-void ram_block_notify_remove(void *host, size_t size, uint32_t max_size)
-{
-    switch_log("STUB: ram_block_notify_remove called\n");
-    (void)host;
-    (void)size;
-    (void)max_size;
-}
-
 __attribute__((weak)) int cpu_get_phys_page_attrs_debug(void *cpu,
                                                          uint64_t addr,
                                                          void *attrs)

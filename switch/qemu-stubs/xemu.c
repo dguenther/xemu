@@ -50,9 +50,6 @@ void xemu_snapshots_load(const char *name, void *err)
 }
 
 char *xemu_get_currently_loaded_disc_path(void) { switch_log("STUB: xemu_get_currently_loaded_disc_path called\n"); return NULL; }
-void xemu_input_set_test_mode(int mode) { switch_log("STUB: xemu_input_set_test_mode called\n"); (void)mode; }
-void xemu_input_process_sdl_events(void *event) { switch_log("STUB: xemu_input_process_sdl_events called\n"); (void)event; }
-void xemu_input_update_controllers(void) { switch_log("STUB: xemu_input_update_controllers called\n"); }
 void xemu_snapshots_set_framebuffer_texture(unsigned int tex, bool flip)
 {
     switch_log("STUB: xemu_snapshots_set_framebuffer_texture called\n");
@@ -67,24 +64,8 @@ struct ControllerStateList {
     void *tqh_first;
     void **tqh_last;
 };
-struct ControllerStateList available_controllers = { NULL, NULL };
 
 void xemu_snapshots_delete(const char *name, void *err) { switch_log("STUB: xemu_snapshots_delete called\n"); (void)name; (void)err; }
-
-/* Input binding stubs */
-void *xemu_input_get_bound(int port) { switch_log("STUB: xemu_input_get_bound called\n"); (void)port; return NULL; }
-void xemu_input_bind(int port, void *state, int type) { switch_log("STUB: xemu_input_bind called\n"); (void)port; (void)state; (void)type; }
-void xemu_input_bind_xmu(int port, const char *path) { switch_log("STUB: xemu_input_bind_xmu called\n"); (void)port; (void)path; }
-void xemu_input_unbind_xmu(int port) { switch_log("STUB: xemu_input_unbind_xmu called\n"); (void)port; }
-void xemu_input_rebind_xmu(int port) { switch_log("STUB: xemu_input_rebind_xmu called\n"); (void)port; }
-void xemu_input_reset_input_mapping(void) { switch_log("STUB: xemu_input_reset_input_mapping called\n"); }
-void xemu_save_peripheral_settings(int port, void *state) { switch_log("STUB: xemu_save_peripheral_settings called\n"); (void)port; (void)state; }
-
-/* Bound controllers array */
-void *bound_controllers[4] = { NULL, NULL, NULL, NULL };
-
-/* Keyboard scancode map */
-const char *g_keyboard_scancode_map[256] = { NULL };
 
 /* XBE info */
 void *xemu_get_xbe_info(void) { switch_log("STUB: xemu_get_xbe_info called\n"); return NULL; }
@@ -105,12 +86,4 @@ void xemu_net_enable(void)
 void xemu_net_disable(void)
 {
     switch_log("STUB: xemu_net_disable called\n");
-}
-
-bool xbox_eeprom_generate(const char *file, int ver)
-{
-    switch_log("STUB: xbox_eeprom_generate called\n");
-    (void)file;
-    (void)ver;
-    return false;
 }

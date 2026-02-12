@@ -64,6 +64,7 @@ NICState *qemu_new_nic(NetClientInfo *info,
                        MemReentrancyGuard *reentrancy_guard,
                        void *opaque)
 {
+    switch_log("STUB: qemu_new_nic called\n");
     (void)model;
     (void)name;
     SwitchNetClientState *snc = calloc(1, sizeof(*snc));
@@ -89,6 +90,7 @@ NICState *qemu_new_nic(NetClientInfo *info,
 
 void qemu_del_nic(NICState *nic)
 {
+    switch_log("STUB: qemu_del_nic called\n");
     if (!nic) {
         return;
     }
@@ -101,17 +103,20 @@ void qemu_del_nic(NICState *nic)
 
 NetClientState *qemu_get_queue(NICState *nic)
 {
+    switch_log("STUB: qemu_get_queue called\n");
     return nic ? nic->ncs : NULL;
 }
 
 NetClientState *qemu_get_subqueue(NICState *nic, int queue_index)
 {
+    switch_log("STUB: qemu_get_subqueue called\n");
     (void)queue_index;
     return qemu_get_queue(nic);
 }
 
 NICState *qemu_get_nic(NetClientState *nc)
 {
+    switch_log("STUB: qemu_get_nic called\n");
     if (!nc) {
         return NULL;
     }
@@ -121,9 +126,40 @@ NICState *qemu_get_nic(NetClientState *nc)
 
 void *qemu_get_nic_opaque(NetClientState *nc)
 {
+    switch_log("STUB: qemu_get_nic_opaque called\n");
     if (!nc) {
         return NULL;
     }
     SwitchNetClientState *snc = container_of(nc, SwitchNetClientState, nc);
     return snc->opaque;
+}
+
+void qemu_announce_self()
+{
+    switch_log("STUB: qemu_announce_self called\n");
+}
+
+void inet_parse()
+{
+    switch_log("STUB: inet_parse called\n");
+}
+
+void socket_parse()
+{
+    switch_log("STUB: socket_parse called\n");
+}
+
+void socket_start_incoming_migration()
+{
+    switch_log("STUB: socket_start_incoming_migration called\n");
+}
+
+void fd_is_socket()
+{
+    switch_log("STUB: fd_is_socket called\n");
+}
+
+void qio_channel_socket_new_fd()
+{
+    switch_log("STUB: qio_channel_socket_new_fd called\n");
 }

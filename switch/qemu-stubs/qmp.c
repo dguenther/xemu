@@ -44,19 +44,6 @@ void qmp_cont(Error **errp)
     vm_start();
 }
 
-void qmp_migrate_incoming(const char *uri, bool has_channels,
-                          MigrationChannelList *channels,
-                          bool has_exit_on_error, bool exit_on_error,
-                          Error **errp)
-{
-    switch_log("STUB: qmp_migrate_incoming called\n");
-    (void)uri;
-    (void)has_channels;
-    (void)channels;
-    (void)has_exit_on_error;
-    (void)exit_on_error;
-    (void)errp;
-}
 
 void qmp_quit(Error **errp)
 {

@@ -122,23 +122,6 @@ const char *qdev_fw_name(DeviceState *dev)
 
 #include "qemu/queue.h"
 
-QemuOptsList qemu_device_opts = {
-    .name = "device",
-    .implied_opt_name = "driver",
-    .head = QTAILQ_HEAD_INITIALIZER(qemu_device_opts.head),
-    .desc = {
-        { /* end of list */ }
-    },
-};
-
-QemuOptsList qemu_global_opts = {
-    .name = "global",
-    .head = QTAILQ_HEAD_INITIALIZER(qemu_global_opts.head),
-    .desc = {
-        { /* end of list */ }
-    },
-};
-
 QemuOptsList qemu_netdev_opts = {
     .name = "netdev",
     .implied_opt_name = "type",
@@ -174,19 +157,3 @@ QemuOptsList qemu_mon_opts = {
         { /* end of list */ }
     },
 };
-
-QemuOptsList qemu_numa_opts = {
-    .name = "numa",
-    .implied_opt_name = "type",
-    .head = QTAILQ_HEAD_INITIALIZER(qemu_numa_opts.head),
-    .desc = {
-        { /* end of list */ }
-    },
-};
-
-bool qemu_global_option(const char *name)
-{
-    switch_log("STUB: qemu_global_option called\n");
-    (void)name;
-    return false;
-}

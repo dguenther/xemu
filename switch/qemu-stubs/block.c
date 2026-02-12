@@ -24,21 +24,6 @@ enum BlockAcctType {
     BLOCK_ACCT_ZONE_MGMT
 };
 
-int qdev_device_help(QemuOpts *opts)
-{
-    switch_log("STUB: qdev_device_help called\n");
-    (void)opts;
-    return 0;
-}
-
-DeviceState *qdev_device_add(QemuOpts *opts, Error **errp)
-{
-    switch_log("STUB: qdev_device_add called\n");
-    (void)opts;
-    (void)errp;
-    return NULL;
-}
-
 void __attribute__((weak)) blk_iostatus_enable(BlockBackend *blk)
 {
     switch_log("STUB: blk_iostatus_enable called\n");

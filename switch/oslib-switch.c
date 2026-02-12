@@ -869,6 +869,21 @@ void qemu_init_exec_dir(const char *argv0)
     (void)argv0;
 }
 
+int qemu_msync(void *addr, size_t length, int fd)
+{
+    printf("Switch qemu_msync: addr=%p length=%zu fd=%d\n", addr, length, fd);
+    return qemu_fdatasync(fd);
+}
+
+bool qemu_has_direct_io(void)
+{
+#ifdef O_DIRECT
+    return true;
+#else
+    return false;
+#endif
+}
+
 /*
  * Poll-based fd monitoring for Switch
  * This is a simplified version since we don't have epoll
