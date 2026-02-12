@@ -12,6 +12,7 @@ typedef struct Chardev Chardev;
 
 int qmp_chardev_open_file_source(const char *path, int flags, Error **errp)
 {
+    switch_log("STUB: qmp_chardev_open_file_source called\n");
     (void)path;
     (void)flags;
     (void)errp;
@@ -20,6 +21,7 @@ int qmp_chardev_open_file_source(const char *path, int flags, Error **errp)
 
 void *qemu_chr_open_fd(int fd_in, int fd_out)
 {
+    switch_log("STUB: qemu_chr_open_fd called\n");
     (void)fd_in;
     (void)fd_out;
     return NULL;

@@ -14,6 +14,7 @@
 
 int waitpid(int pid, int *status, int options)
 {
+    switch_log("STUB: waitpid called\n");
     (void)pid;
     (void)status;
     (void)options;
@@ -22,6 +23,7 @@ int waitpid(int pid, int *status, int options)
 
 int execvp(const char *file, char *const argv[])
 {
+    switch_log("STUB: execvp called\n");
     (void)file;
     (void)argv;
     return -1;  /* Always fail - no process support */

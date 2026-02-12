@@ -184,43 +184,51 @@ void *qemu_memalign(size_t alignment, size_t size)
 
 void os_setup_limits(void)
 {
+    switch_log("STUB: os_setup_limits called\n");
 }
 
 void os_set_proc_name(const char *s)
 {
+    switch_log("STUB: os_set_proc_name called\n");
     (void)s;
 }
 
 int os_set_daemonize(bool d)
 {
+    switch_log("STUB: os_set_daemonize called\n");
     (void)d;
     return 0;
 }
 
 bool os_set_runas(const char *user_id)
 {
+    switch_log("STUB: os_set_runas called\n");
     (void)user_id;
     return true;
 }
 
 void os_set_chroot(const char *path)
 {
+    switch_log("STUB: os_set_chroot called\n");
     (void)path;
 }
 
 bool qemu_finish_async_prealloc_mem(Error **errp)
 {
+    switch_log("STUB: qemu_finish_async_prealloc_mem called\n");
     (void)errp;
     return true;
 }
 
 char *qemu_get_pid_name(pid_t pid)
 {
+    switch_log("STUB: qemu_get_pid_name called\n");
     (void)pid;
     return NULL;
 }
 
 int socket_init(void)
 {
+    switch_log("STUB: socket_init called\n");
     return 0;
 }

@@ -548,6 +548,58 @@ void switch_debug_log_cpu0_state(void)
                     (uint32_t)env->regs[R_ESP],
                     insn[0], insn[1], insn[2], insn[3],
                     insn[4], insn[5], insn[6], insn[7]);
+
+                // Decode common stall patterns
+                if (insn[0] == 0xf3 && (insn[1] == 0xaa || insn[1] == 0xab)) {
+                    // REP STOS instruction - memory fill operation
+                    const char *size_str = (insn[1] == 0xaa) ? "STOSB" : "STOSD";
+                    uint32_t count = (uint32_t)env->regs[R_ECX];
+                    uint32_t dest = (uint32_t)env->regs[R_EDI];
+                    uint32_t value = (uint32_t)env->regs[R_EAX];
+                    switch_log(
+                        "Switch: stall-decode REP %s: writing 0x%08x to [0x%08x] %u times (%u bytes)\n",
+                        size_str, value, dest, count,
+                        count * (insn[1] == 0xaa ? 1 : 4));
+                    if (count > 0x100000) {
+                        switch_log("Switch: stall-decode WARNING: Large repeat count (%u iterations, %u MB), TCG emulation will be slow!\n",
+                                   count, (count * (insn[1] == 0xaa ? 1 : 4)) >> 20);
+                    }
+                } else if (insn[0] == 0xf3 && (insn[1] == 0xa4 || insn[1] == 0xa5)) {
+                    // REP MOVS instruction - memory copy operation
+                    const char *size_str = (insn[1] == 0xa4) ? "MOVSB" : "MOVSD";
+                    uint32_t count = (uint32_t)env->regs[R_ECX];
+                    switch_log(
+                        "Switch: stall-decode REP %s: copying %u times (%u bytes), TCG will be slow\n",
+                        size_str, count, count * (insn[1] == 0xa4 ? 1 : 4));
+                } else if (insn[0] == 0xe8) {
+                    // CALL instruction
+                    int32_t offset = insn[1] | (insn[2] << 8) | (insn[3] << 16) | (insn[4] << 24);
+                    vaddr target = pc + 5 + offset;
+                    switch_log("Switch: stall-decode CALL 0x%08" VADDR_PRIx "\n", target);
+                } else if (insn[0] == 0xeb) {
+                    // Short JMP
+                    int8_t offset = (int8_t)insn[1];
+                    vaddr target = pc + 2 + offset;
+                    switch_log("Switch: stall-decode JMP 0x%08" VADDR_PRIx, target);
+                    if (target == pc) {
+                        switch_log(" (INFINITE LOOP!)");
+                    }
+                    switch_log("\n");
+                } else if (insn[0] == 0xe9) {
+                    // Near JMP
+                    int32_t offset = insn[1] | (insn[2] << 8) | (insn[3] << 16) | (insn[4] << 24);
+                    vaddr target = pc + 5 + offset;
+                    switch_log("Switch: stall-decode JMP 0x%08" VADDR_PRIx, target);
+                    if (target == pc) {
+                        switch_log(" (INFINITE LOOP!)");
+                    }
+                    switch_log("\n");
+                } else if (insn[0] >= 0x70 && insn[0] <= 0x7f) {
+                    // Conditional jump
+                    int8_t offset = (int8_t)insn[1];
+                    vaddr target = pc + 2 + offset;
+                    switch_log("Switch: stall-decode Jcc 0x%08" VADDR_PRIx " (conditional loop?)\n", target);
+                }
             } else {
                 switch_log("Switch: stall-code read failed pc=0x%08" VADDR_PRIx
                            " rc=%d\n", pc, rc);

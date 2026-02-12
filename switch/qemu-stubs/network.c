@@ -16,36 +16,43 @@ typedef struct SwitchNetClientState {
 
 void net_client_parse(QemuOptsList *opts_list, const char *optstr)
 {
+    switch_log("STUB: net_client_parse called\n");
     (void)opts_list;
     (void)optstr;
 }
 
 bool netdev_is_modern(const char *optstr)
 {
+    switch_log("STUB: netdev_is_modern called\n");
     (void)optstr;
     return false;
 }
 
 void netdev_parse_modern(const char *optstr)
 {
+    switch_log("STUB: netdev_parse_modern called\n");
     (void)optstr;
 }
 
 void net_init_clients(void)
 {
+    switch_log("STUB: net_init_clients called\n");
 }
 
 void net_cleanup(void)
 {
+    switch_log("STUB: net_cleanup called\n");
 }
 
 void net_check_clients(void)
 {
+    switch_log("STUB: net_check_clients called\n");
 }
 
 int qemu_find_net_clients_except(const char *id, NetClientState **ncs,
                                  NetClientDriver type, int max)
 {
+    switch_log("STUB: qemu_find_net_clients_except called\n");
     (void)id; (void)ncs; (void)type; (void)max;
     return 0;
 }

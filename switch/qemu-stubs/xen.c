@@ -9,5 +9,6 @@
 
 __attribute__((weak)) void xen_register_framebuffer(MemoryRegion *mr)
 {
+    switch_log("STUB: xen_register_framebuffer called\n");
     (void)mr;
 }

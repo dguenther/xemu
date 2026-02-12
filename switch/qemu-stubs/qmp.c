@@ -14,6 +14,7 @@ extern void vm_start(void);
  */
 void qmp_eject(const char *device, bool has_force, bool force, void *errp)
 {
+    switch_log("STUB: qmp_eject called\n");
     (void)device;
     (void)has_force;
     (void)force;
@@ -26,6 +27,7 @@ void qmp_blockdev_change_medium(const char *device,
                                  bool has_read_only, int read_only_mode,
                                  void *errp)
 {
+    switch_log("STUB: qmp_blockdev_change_medium called\n");
     (void)device;
     (void)filename;
     (void)has_format;
@@ -37,6 +39,7 @@ void qmp_blockdev_change_medium(const char *device,
 
 void qmp_cont(Error **errp)
 {
+    switch_log("STUB: qmp_cont called\n");
     (void)errp;
     vm_start();
 }
@@ -46,6 +49,7 @@ void qmp_migrate_incoming(const char *uri, bool has_channels,
                           bool has_exit_on_error, bool exit_on_error,
                           Error **errp)
 {
+    switch_log("STUB: qmp_migrate_incoming called\n");
     (void)uri;
     (void)has_channels;
     (void)channels;
@@ -56,6 +60,7 @@ void qmp_migrate_incoming(const char *uri, bool has_channels,
 
 void qmp_quit(Error **errp)
 {
+    switch_log("STUB: qmp_quit called\n");
     (void)errp;
     exit(0);
 }

@@ -20,17 +20,20 @@ void qdev_propinfo_set_default_value_int(ObjectProperty *op,
 /* Stub property get/set functions */
 static void stub_prop_get(Object *obj, Visitor *v, const char *name, void *opaque, Error **errp)
 {
+    switch_log("STUB: stub_prop_get called for property '%s'\n", name);
     (void)obj; (void)v; (void)name; (void)opaque; (void)errp;
 }
 
 static void stub_prop_set(Object *obj, Visitor *v, const char *name, void *opaque, Error **errp)
 {
+    switch_log("STUB: stub_prop_set called for property '%s'\n", name);
     (void)obj; (void)v; (void)name; (void)opaque; (void)errp;
 }
 
 /* Stub create function that properly creates a property using object_class_property_add */
 static ObjectProperty *stub_prop_create(ObjectClass *oc, const char *name, const Property *prop)
 {
+    switch_log("STUB: stub_prop_create called for property '%s'\n", name);
     return object_class_property_add(oc, name, prop->info->name,
                                       stub_prop_get,
                                       stub_prop_set,
@@ -41,6 +44,7 @@ static ObjectProperty *stub_prop_create(ObjectClass *oc, const char *name, const
 /* Stub set_default_value function */
 static void stub_prop_set_default_value(ObjectProperty *op, const Property *prop)
 {
+    switch_log("STUB: stub_prop_set_default_value called for property '%s'\n", prop->name);
     (void)op; (void)prop;
     /* Do nothing - stub implementation */
 }
@@ -73,6 +77,7 @@ __attribute__((weak)) const PropertyInfo qdev_prop_netdev = {
 
 __attribute__((weak)) void qdev_connect_gpio_out(DeviceState *dev, int n, qemu_irq pin)
 {
+    switch_log("STUB: qdev_connect_gpio_out called\n");
     (void)dev; (void)n; (void)pin;
 }
 
@@ -81,6 +86,7 @@ __attribute__((weak)) void qdev_connect_gpio_out_named(DeviceState *dev,
                                                        int n,
                                                        qemu_irq pin)
 {
+    switch_log("STUB: qdev_connect_gpio_out_named called\n");
     (void)dev;
     (void)name;
     (void)n;
@@ -89,11 +95,13 @@ __attribute__((weak)) void qdev_connect_gpio_out_named(DeviceState *dev,
 
 void qdev_finalize_clocklist(DeviceState *dev)
 {
+    switch_log("STUB: qdev_finalize_clocklist called\n");
     (void)dev;
 }
 
 const char *qdev_fw_name(DeviceState *dev)
 {
+    switch_log("STUB: qdev_fw_name called\n");
     (void)dev;
     return NULL;
 }
@@ -178,6 +186,7 @@ QemuOptsList qemu_numa_opts = {
 
 bool qemu_global_option(const char *name)
 {
+    switch_log("STUB: qemu_global_option called\n");
     (void)name;
     return false;
 }

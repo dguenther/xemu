@@ -127,7 +127,7 @@ typedef struct VMStateDescription {
 typedef int ICountMode;
 
 /* Macro for stubbing integer-returning functions */
-#define SWITCH_STUB_INT(name) __attribute__((weak)) int name(void) { return 0; }
+#define SWITCH_STUB_INT(name) __attribute__((weak)) int name(void) { switch_log("STUB: " #name " called\n"); return 0; }
 
 /* Utility functions */
 void switch_log(const char *format, ...);

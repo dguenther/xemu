@@ -275,14 +275,17 @@ uint16_t _TRACE_SERIAL_READ_DSTATE = 0;
 /* Trace functions */
 int __attribute__((weak)) trace_events_enabled_count(void)
 {
+    switch_log("STUB: trace_events_enabled_count called\n");
     return 0;
 }
 
 void __attribute__((weak)) trace_event_register_group(void *group)
 {
+    switch_log("STUB: trace_event_register_group called\n");
     (void)group;
 }
 void __attribute__((weak)) trace_event_set_state_dynamic(void *ev, bool state)
 {
+    switch_log("STUB: trace_event_set_state_dynamic called\n");
     (void)ev; (void)state;
 }

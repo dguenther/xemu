@@ -15,6 +15,7 @@ void fw_cfg_add_file_callback(FWCfgState *s, const char *filename,
                               void *callback_opaque,
                               void *data, size_t len, bool read_only)
 {
+    switch_log("STUB: fw_cfg_add_file_callback called\n");
     (void)s;
     (void)filename;
     (void)select_cb;
@@ -29,6 +30,7 @@ __attribute__((weak))
 void *fw_cfg_modify_file(FWCfgState *s, const char *filename, void *data,
                          size_t len)
 {
+    switch_log("STUB: fw_cfg_modify_file called\n");
     (void)s;
     (void)filename;
     (void)data;

@@ -35,6 +35,7 @@ int64_t get_image_size(const char *filename)
 __attribute__((weak))
 ssize_t load_image_size(const char *filename, void *addr, size_t size)
 {
+    switch_log("STUB: load_image_size called\n");
     (void)filename;
     (void)addr;
     (void)size;
@@ -44,6 +45,7 @@ ssize_t load_image_size(const char *filename, void *addr, size_t size)
 __attribute__((weak))
 ssize_t rom_add_vga(const char *file)
 {
+    switch_log("STUB: rom_add_vga called\n");
     (void)file;
     return -1;
 }
@@ -51,6 +53,7 @@ ssize_t rom_add_vga(const char *file)
 __attribute__((weak))
 ssize_t rom_add_option(const char *file, int32_t bootindex)
 {
+    switch_log("STUB: rom_add_option called\n");
     (void)file;
     (void)bootindex;
     return -1;
@@ -59,16 +62,19 @@ ssize_t rom_add_option(const char *file, int32_t bootindex)
 __attribute__((weak))
 void rom_set_order_override(int order)
 {
+    switch_log("STUB: rom_set_order_override called\n");
     (void)order;
 }
 
 __attribute__((weak))
 void rom_reset_order_override(void)
 {
+    switch_log("STUB: rom_reset_order_override called\n");
 }
 
 __attribute__((weak))
 int rom_check_and_register_reset(void)
 {
+    switch_log("STUB: rom_check_and_register_reset called\n");
     return 0;
 }
