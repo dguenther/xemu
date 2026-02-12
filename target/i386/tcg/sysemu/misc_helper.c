@@ -27,40 +27,198 @@
 #include "tcg/helper-tcg.h"
 #include "hw/i386/apic.h"
 
+#ifdef CONFIG_SWITCH
+void switch_debug_note_io_port_access(uint32_t eip, uint32_t port,
+                                      bool is_write, unsigned size,
+                                      uint32_t value);
+
+#ifndef SWITCH_IO_DETAIL_LOGS
+#define SWITCH_IO_DETAIL_LOGS 0
+#endif
+
+#if SWITCH_IO_DETAIL_LOGS
+static bool switch_probe_port(uint32_t port)
+{
+    return (port >= 0xcf8 && port <= 0xcff) ||   /* PCI config addr/data */
+           (port >= 0xc000 && port <= 0xc2ff) || /* SMBus/PMIO windows */
+           (port >= 0x20 && port <= 0x21) ||     /* PIC master */
+           (port >= 0xa0 && port <= 0xa1) ||     /* PIC slave */
+           (port >= 0x40 && port <= 0x43) ||     /* PIT */
+           (port >= 0x70 && port <= 0x71) ||     /* RTC/CMOS */
+           (port >= 0x1f0 && port <= 0x1f7) ||   /* IDE primary */
+           port == 0x3f6 ||                      /* IDE primary control */
+           (port >= 0x170 && port <= 0x177) ||   /* IDE secondary */
+           port == 0x376 ||                      /* IDE secondary control */
+           (port >= 0x3b0 && port <= 0x3df) ||   /* VGA legacy ports */
+           port == 0x80;                         /* POST delay port */
+}
+
+static bool switch_force_io_log(uint32_t eip)
+{
+    return eip >= 0x80054000u && eip < 0x80056000u;
+}
+#endif
+#endif
+
 void helper_outb(CPUX86State *env, uint32_t port, uint32_t data)
 {
+#ifdef CONFIG_SWITCH
+#if SWITCH_IO_DETAIL_LOGS
+    static bool have_last_post;
+    static uint8_t last_post;
+    static unsigned out_log_count;
+    bool force_log = switch_force_io_log(env->eip);
+    bool post_code_update = false;
+    bool should_log = switch_probe_port(port) &&
+        (out_log_count < 200 || (out_log_count % 1000) == 0);
+
+    if (port == 0x80) {
+        uint8_t v = data & 0xff;
+        if (!have_last_post || last_post != v) {
+            have_last_post = true;
+            last_post = v;
+            post_code_update = true;
+            should_log = true;
+        }
+    }
+
+    if (force_log && switch_probe_port(port)) {
+        should_log = true;
+    }
+
+    if (should_log) {
+        fprintf(stderr,
+                "Switch: x86 outb port=0x%04x val=0x%02x eip=0x%08x%s\n",
+                port, data & 0xff, env->eip,
+                post_code_update ? " post" : "");
+        out_log_count++;
+    }
+#endif
+#endif
+#ifdef CONFIG_SWITCH
+    switch_debug_note_io_port_access(env->eip, port, true, 1, data & 0xff);
+#endif
     address_space_stb(&address_space_io, port, data,
                       cpu_get_mem_attrs(env), NULL);
 }
 
 target_ulong helper_inb(CPUX86State *env, uint32_t port)
 {
-    return address_space_ldub(&address_space_io, port,
-                              cpu_get_mem_attrs(env), NULL);
+    target_ulong ret = address_space_ldub(&address_space_io, port,
+                                          cpu_get_mem_attrs(env), NULL);
+#ifdef CONFIG_SWITCH
+#if SWITCH_IO_DETAIL_LOGS
+    static unsigned in_log_count;
+    bool force_log = switch_force_io_log(env->eip);
+    if (switch_probe_port(port) &&
+        ((in_log_count < 200 || (in_log_count % 1000) == 0) || force_log)) {
+        fprintf(stderr,
+                "Switch: x86 inb  port=0x%04x val=0x%02" PRIx64 " eip=0x%08x\n",
+                port, (uint64_t)(ret & 0xff), env->eip);
+        in_log_count++;
+    }
+#endif
+#endif
+#ifdef CONFIG_SWITCH
+    switch_debug_note_io_port_access(env->eip, port, false, 1,
+                                     (uint32_t)(ret & 0xff));
+#endif
+    return ret;
 }
 
 void helper_outw(CPUX86State *env, uint32_t port, uint32_t data)
 {
+#ifdef CONFIG_SWITCH
+#if SWITCH_IO_DETAIL_LOGS
+    static unsigned out_log_count;
+    bool force_log = switch_force_io_log(env->eip);
+    if (switch_probe_port(port) &&
+        ((out_log_count < 200 || (out_log_count % 1000) == 0) || force_log)) {
+        fprintf(stderr,
+                "Switch: x86 outw port=0x%04x val=0x%04x eip=0x%08x\n",
+                port, data & 0xffff, env->eip);
+        out_log_count++;
+    }
+#endif
+#endif
+#ifdef CONFIG_SWITCH
+    switch_debug_note_io_port_access(env->eip, port, true, 2, data & 0xffff);
+#endif
     address_space_stw(&address_space_io, port, data,
                       cpu_get_mem_attrs(env), NULL);
 }
 
 target_ulong helper_inw(CPUX86State *env, uint32_t port)
 {
-    return address_space_lduw(&address_space_io, port,
-                              cpu_get_mem_attrs(env), NULL);
+    target_ulong ret = address_space_lduw(&address_space_io, port,
+                                          cpu_get_mem_attrs(env), NULL);
+#ifdef CONFIG_SWITCH
+#if SWITCH_IO_DETAIL_LOGS
+    static unsigned in_log_count;
+    bool force_log = switch_force_io_log(env->eip);
+    if (switch_probe_port(port) &&
+        ((in_log_count < 200 || (in_log_count % 1000) == 0) || force_log)) {
+        fprintf(stderr,
+                "Switch: x86 inw  port=0x%04x val=0x%04" PRIx64 " eip=0x%08x\n",
+                port, (uint64_t)(ret & 0xffff), env->eip);
+        in_log_count++;
+    }
+#endif
+#endif
+#ifdef CONFIG_SWITCH
+    switch_debug_note_io_port_access(env->eip, port, false, 2,
+                                     (uint32_t)(ret & 0xffff));
+#endif
+    return ret;
 }
 
 void helper_outl(CPUX86State *env, uint32_t port, uint32_t data)
 {
+#ifdef CONFIG_SWITCH
+#if SWITCH_IO_DETAIL_LOGS
+    static unsigned out_log_count;
+    bool force_log = switch_force_io_log(env->eip);
+    bool lpc_rom_disable_select = (port == 0x0cf8 && data == 0x80000880u);
+    if ((switch_probe_port(port) &&
+         ((out_log_count < 200 || (out_log_count % 1000) == 0) || force_log)) ||
+        lpc_rom_disable_select) {
+        fprintf(stderr,
+                "Switch: x86 outl port=0x%04x val=0x%08x eip=0x%08x%s\n",
+                port, data, env->eip,
+                lpc_rom_disable_select ? " lpc-rom-disable-select" : "");
+        out_log_count++;
+    }
+#endif
+#endif
+#ifdef CONFIG_SWITCH
+    switch_debug_note_io_port_access(env->eip, port, true, 4, data);
+#endif
     address_space_stl(&address_space_io, port, data,
                       cpu_get_mem_attrs(env), NULL);
 }
 
 target_ulong helper_inl(CPUX86State *env, uint32_t port)
 {
-    return address_space_ldl(&address_space_io, port,
-                             cpu_get_mem_attrs(env), NULL);
+    target_ulong ret = address_space_ldl(&address_space_io, port,
+                                         cpu_get_mem_attrs(env), NULL);
+#ifdef CONFIG_SWITCH
+#if SWITCH_IO_DETAIL_LOGS
+    static unsigned in_log_count;
+    bool force_log = switch_force_io_log(env->eip);
+    if (switch_probe_port(port) &&
+        ((in_log_count < 200 || (in_log_count % 1000) == 0) || force_log)) {
+        fprintf(stderr,
+                "Switch: x86 inl  port=0x%04x val=0x%08" PRIx64 " eip=0x%08x\n",
+                port, (uint64_t)(ret & 0xffffffffu), env->eip);
+        in_log_count++;
+    }
+#endif
+#endif
+#ifdef CONFIG_SWITCH
+    switch_debug_note_io_port_access(env->eip, port, false, 4,
+                                     (uint32_t)(ret & 0xffffffffu));
+#endif
+    return ret;
 }
 
 target_ulong helper_read_cr8(CPUX86State *env)
@@ -514,9 +672,20 @@ void helper_flush_page(CPUX86State *env, target_ulong addr)
 G_NORETURN void helper_hlt(CPUX86State *env)
 {
     CPUState *cs = env_cpu(env);
+#ifdef CONFIG_SWITCH
+    static unsigned hlt_log_count;
+#endif
 
     do_end_instruction(env);
     cs->halted = 1;
+#ifdef CONFIG_SWITCH
+    if (hlt_log_count < 20 || (hlt_log_count % 20000) == 0) {
+        fprintf(stderr,
+                "Switch: helper_hlt cpu=%d eip=0x%08x int_req=0x%x\n",
+                cs->cpu_index, env->eip, cs->interrupt_request);
+    }
+    hlt_log_count++;
+#endif
     cs->exception_index = EXCP_HLT;
     cpu_loop_exit(cs);
 }

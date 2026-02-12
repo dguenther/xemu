@@ -43,6 +43,15 @@ extern void xemu_display_refresh(void);
 
 /* Boot request from UI */
 extern int switch_consume_boot_bios_request(void);
+extern bool runstate_is_running(void);
+extern void switch_debug_log_cpu0_state(void);
+
+#ifndef SWITCH_DISPLAY_REFRESH_INTERVAL
+#define SWITCH_DISPLAY_REFRESH_INTERVAL 120
+#endif
+#if SWITCH_DISPLAY_REFRESH_INTERVAL < 1
+#error "SWITCH_DISPLAY_REFRESH_INTERVAL must be >= 1"
+#endif
 
 /* Forward declarations */
 extern void switch_platform_init(void);
@@ -122,6 +131,31 @@ static void switch_update_stderr_state(void)
 int switch_log_stderr_enabled(void)
 {
     return log_to_stderr;
+}
+
+static void redirect_stdio_to_files_if_needed(void)
+{
+#ifdef __SWITCH__
+    if (nxlink_active) {
+        return;
+    }
+
+    FILE *err = freopen("sdmc:/switch/xemu/stderr.log", "w", stderr);
+    if (!err) {
+        err = freopen("/switch/xemu/stderr.log", "w", stderr);
+    }
+    if (err) {
+        setvbuf(stderr, NULL, _IOLBF, 0);
+    }
+
+    FILE *out = freopen("sdmc:/switch/xemu/stdout.log", "w", stdout);
+    if (!out) {
+        out = freopen("/switch/xemu/stdout.log", "w", stdout);
+    }
+    if (out) {
+        setvbuf(stdout, NULL, _IOLBF, 0);
+    }
+#endif
 }
 
 static int mkdir_path(const char *path)
@@ -312,15 +346,17 @@ static void cleanup_switch_services(void)
  */
 static char **build_xemu_args(int *argc_out)
 {
-    /* For now, use hardcoded arguments for initial testing */
+    /*
+     * Let xemu/QEMU synthesize machine/display args from g_config in qemu_init().
+     * Passing -machine/-display here duplicates those options and can override
+     * earlier keyvals unexpectedly.
+     */
     static char *argv[] = {
         "xemu",
-        "-display", "xemu",               /* Use xemu SDL+OpenGL display */
-        "-machine", "xbox",                  /* Xbox machine type */
         NULL
     };
 
-    *argc_out = 5;
+    *argc_out = 1;
     return argv;
 }
 
@@ -516,6 +552,8 @@ int main(int argc, char **argv)
         switch_update_stderr_state();
     }
 
+    redirect_stdio_to_files_if_needed();
+
     /* Initialize SDL for video + input and create a GL 4.3 core context */
     switch_log("Initializing SDL2 (video + input)...\n");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
@@ -594,7 +632,7 @@ int main(int argc, char **argv)
     bool qemu_display_ready = false;
     bool qemu_display_pending = false;
     while (running && appletMainLoop()) {
-        if (frame_count < 5 || frame_count % 60 == 0) {
+        if (frame_count < 5 || frame_count % 10000 == 0) {
             switch_log("Frame %d\n", frame_count);
             if (switch_log_stderr_enabled()) {
                 fflush(stderr);
@@ -629,16 +667,39 @@ int main(int argc, char **argv)
 
         if (qemu_display_ready && !qemu_thread_exited) {
             static int refresh_log_count;
+            static int runstate_log_count;
+            static int refresh_throttle_logged;
             if (refresh_log_count < 5) {
                 switch_log("Switch: calling xemu_display_refresh (%d)\n",
                            refresh_log_count);
                 refresh_log_count++;
             }
+            if (runstate_log_count < 10 && frame_count % 60 == 0) {
+                switch_log("Switch: runstate running=%d\n",
+                           runstate_is_running() ? 1 : 0);
+                runstate_log_count++;
+            }
+            if (frame_count % 60 == 0) {
+                switch_debug_log_cpu0_state();
+            }
             if (nv2a_is_initialized()) {
-                xemu_display_refresh();
+                if (!refresh_throttle_logged) {
+                    switch_log("Switch: refresh interval=%d frame(s)\n",
+                               SWITCH_DISPLAY_REFRESH_INTERVAL);
+                    refresh_throttle_logged = 1;
+                }
+                if ((frame_count % SWITCH_DISPLAY_REFRESH_INTERVAL) == 0) {
+                    xemu_display_refresh();
+                }
             } else if (refresh_log_count < 5) {
                 switch_log("Switch: waiting for NV2A init before refresh\n");
             }
+
+            /*
+             * Avoid a tight main-thread spin while QEMU is running.
+             * This gives the emulation thread room to run on Switch.
+             */
+            svcSleepThread(1000000);
         } else {
             /* Process SDL events for HUD before QEMU starts */
             SDL_Event event;

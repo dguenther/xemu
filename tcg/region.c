@@ -35,6 +35,9 @@
 #include "tcg-internal.h"
 #include "host/cpuinfo.h"
 
+#ifdef CONFIG_SWITCH
+#include "switch/tcg-jit-switch.h"
+#endif
 
 /*
  * Local source-level compatibility with Unix.
@@ -569,6 +572,26 @@ static int alloc_code_gen_buffer_anon(size_t size, int prot,
 }
 
 #ifndef CONFIG_TCG_INTERPRETER
+#ifdef CONFIG_SWITCH
+static int alloc_code_gen_buffer_splitwx_switch(size_t size, Error **errp)
+{
+    uint32_t rc;
+    void *buf_rw;
+    void *buf_rx;
+
+    rc = qemu_switch_tcg_jit_create(size, &buf_rw, &buf_rx);
+    if (rc != 0) {
+        error_setg(errp, "switch jit init failed: 0x%x", rc);
+        return -1;
+    }
+
+    region.start_aligned = buf_rw;
+    region.total_size = size;
+    tcg_splitwx_diff = (uintptr_t)buf_rx - (uintptr_t)buf_rw;
+    return PROT_READ | PROT_WRITE;
+}
+#endif
+
 #ifdef CONFIG_POSIX
 #include "qemu/memfd.h"
 
@@ -671,6 +694,9 @@ static int alloc_code_gen_buffer_splitwx_vmremap(size_t size, Error **errp)
 static int alloc_code_gen_buffer_splitwx(size_t size, Error **errp)
 {
 #ifndef CONFIG_TCG_INTERPRETER
+# ifdef CONFIG_SWITCH
+    return alloc_code_gen_buffer_splitwx_switch(size, errp);
+# endif
 # ifdef CONFIG_DARWIN
     return alloc_code_gen_buffer_splitwx_vmremap(size, errp);
 # endif

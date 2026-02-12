@@ -22,12 +22,169 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <poll.h>
+#include <limits.h>
 
 #ifdef __SWITCH__
 #include <switch.h>
 #endif
 
 typedef struct Error Error;
+
+typedef struct SwitchTrackedOpen {
+    char path[PATH_MAX];
+    int fd;
+    int access_mode;
+} SwitchTrackedOpen;
+
+static pthread_mutex_t g_switch_open_track_lock = PTHREAD_MUTEX_INITIALIZER;
+static SwitchTrackedOpen g_switch_open_track[16];
+/*
+ * Switch libc may not provide real pread/pwrite, so we emulate with
+ * lseek+read/write below. That emulation must be serialized because:
+ * 1) lseek changes the file offset for the open file description.
+ * 2) qcow2 workaround reuses one O_RDWR open handle via dup(), which shares
+ *    the same open file description/offset across duplicated fds.
+ *
+ * Without serialization, concurrent block I/O can race and corrupt offsets.
+ */
+static pthread_mutex_t g_switch_pread_pwrite_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static bool switch_path_has_suffix(const char *path, const char *suffix)
+{
+    size_t path_len;
+    size_t suffix_len;
+
+    if (!path || !suffix) {
+        return false;
+    }
+
+    path_len = strlen(path);
+    suffix_len = strlen(suffix);
+    if (path_len < suffix_len) {
+        return false;
+    }
+
+    return strcasecmp(path + path_len - suffix_len, suffix) == 0;
+}
+
+static bool switch_is_qcow2_path(const char *path)
+{
+    return switch_path_has_suffix(path, ".qcow2");
+}
+
+static void switch_track_open_add(int fd, const char *path, int flags)
+{
+    int slot = -1;
+
+    if (fd < 0 || !path) {
+        return;
+    }
+
+    pthread_mutex_lock(&g_switch_open_track_lock);
+    for (int i = 0; i < (int)(sizeof(g_switch_open_track) / sizeof(g_switch_open_track[0])); i++) {
+        if (g_switch_open_track[i].fd == fd) {
+            slot = i;
+            break;
+        }
+        if (slot < 0 && g_switch_open_track[i].fd < 0) {
+            slot = i;
+        }
+    }
+
+    if (slot >= 0) {
+        snprintf(g_switch_open_track[slot].path,
+                 sizeof(g_switch_open_track[slot].path),
+                 "%s", path);
+        g_switch_open_track[slot].fd = fd;
+        g_switch_open_track[slot].access_mode = flags & O_ACCMODE;
+    }
+    pthread_mutex_unlock(&g_switch_open_track_lock);
+}
+
+static void switch_track_open_remove(int fd)
+{
+    if (fd < 0) {
+        return;
+    }
+
+    pthread_mutex_lock(&g_switch_open_track_lock);
+    for (int i = 0; i < (int)(sizeof(g_switch_open_track) / sizeof(g_switch_open_track[0])); i++) {
+        if (g_switch_open_track[i].fd == fd) {
+            g_switch_open_track[i].fd = -1;
+            g_switch_open_track[i].path[0] = '\0';
+            g_switch_open_track[i].access_mode = O_RDONLY;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_switch_open_track_lock);
+}
+
+static int switch_track_open_find_conflicting_ro(const char *path)
+{
+    int fd = -1;
+
+    if (!path) {
+        return -1;
+    }
+
+    pthread_mutex_lock(&g_switch_open_track_lock);
+    for (int i = 0; i < (int)(sizeof(g_switch_open_track) / sizeof(g_switch_open_track[0])); i++) {
+        if (g_switch_open_track[i].fd >= 0 &&
+            g_switch_open_track[i].access_mode == O_RDONLY &&
+            strcmp(g_switch_open_track[i].path, path) == 0) {
+            fd = g_switch_open_track[i].fd;
+            g_switch_open_track[i].fd = -1;
+            g_switch_open_track[i].path[0] = '\0';
+            g_switch_open_track[i].access_mode = O_RDONLY;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_switch_open_track_lock);
+
+    return fd;
+}
+
+static int switch_track_open_find_shared_writable(const char *path)
+{
+    int fd = -1;
+
+    if (!path) {
+        return -1;
+    }
+
+    pthread_mutex_lock(&g_switch_open_track_lock);
+    for (int i = 0; i < (int)(sizeof(g_switch_open_track) / sizeof(g_switch_open_track[0])); i++) {
+        if (g_switch_open_track[i].fd >= 0 &&
+            g_switch_open_track[i].access_mode == O_RDWR &&
+            strcmp(g_switch_open_track[i].path, path) == 0) {
+            fd = g_switch_open_track[i].fd;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_switch_open_track_lock);
+
+    return fd;
+}
+
+static void switch_track_open_init(void)
+{
+    static bool initialized;
+
+    if (initialized) {
+        return;
+    }
+
+    pthread_mutex_lock(&g_switch_open_track_lock);
+    if (!initialized) {
+        for (int i = 0; i < (int)(sizeof(g_switch_open_track) / sizeof(g_switch_open_track[0])); i++) {
+            g_switch_open_track[i].fd = -1;
+            g_switch_open_track[i].path[0] = '\0';
+            g_switch_open_track[i].access_mode = O_RDONLY;
+        }
+        initialized = true;
+    }
+    pthread_mutex_unlock(&g_switch_open_track_lock);
+}
 
 /*
  * POSIX user/process ID functions - not available on Switch
@@ -281,31 +438,113 @@ int qemu_create(const char *path, int flags, mode_t mode, Error **errp)
 
 int qemu_open(const char *name, int flags, Error **errp)
 {
-    printf("Switch qemu_open: flags=0x%x ", flags);
-    if ((flags & 3) == 0) printf("RDONLY");
-    else if ((flags & 3) == 1) printf("WRONLY");
-    else if ((flags & 3) == 2) printf("RDWR");
-    printf("\n");
+    const char *mode = "UNKNOWN";
+    const char *path = name ? name : "(null)";
+    bool is_qcow2;
+
+    switch_track_open_init();
+
+    if ((flags & 3) == 0) {
+        mode = "RDONLY";
+    } else if ((flags & 3) == 1) {
+        mode = "WRONLY";
+    } else if ((flags & 3) == 2) {
+        mode = "RDWR";
+    }
+    is_qcow2 = switch_is_qcow2_path(path);
+    printf("Switch qemu_open: path=%s flags=0x%x mode=%s\n", path, flags, mode);
+
+    /*
+     * Switch/libnx appears to allow only one real O_RDWR open handle for a
+     * given file at a time (additional O_RDWR opens for qcow2 frequently fail
+     * with EIO). For qcow2 images, reuse an existing writable handle via dup()
+     * so higher layers can hold multiple descriptors without re-opening the
+     * underlying file in O_RDWR.
+     */
+    if (is_qcow2 && ((flags & O_ACCMODE) == O_RDWR)) {
+        int shared_fd = switch_track_open_find_shared_writable(path);
+        if (shared_fd >= 0) {
+            int dup_fd = dup(shared_fd);
+            if (dup_fd >= 0) {
+                printf("Switch qemu_open: reusing existing RDWR fd=%d via dup -> %d for %s\n",
+                       shared_fd, dup_fd, path);
+                switch_track_open_add(dup_fd, path, flags);
+                return dup_fd;
+            }
+            if (errno == EBADF) {
+                switch_track_open_remove(shared_fd);
+            }
+        }
+    }
 
     int fd = open(name, flags, 0666);
     if (fd < 0) {
         int err = errno;
-        // Workaround: Switch seems to only support multiple readers or single writer
+        /*
+         * Workaround: libnx FS can transiently reject O_RDWR while another
+         * temporary reader is still open on the same file. Retry briefly
+         * before degrading to O_RDONLY.
+         */
         if ((flags & 3) == 2 && (err == EIO || err == EACCES)) {
-            printf("Switch qemu_open: O_RDWR failed, trying O_RDONLY fallback\n");
-            int rdonly_flags = (flags & ~3) | 0;  // Replace access mode with O_RDONLY
+            if (is_qcow2) {
+                int shared_fd = switch_track_open_find_shared_writable(path);
+                if (shared_fd >= 0) {
+                    int dup_fd = dup(shared_fd);
+                    if (dup_fd >= 0) {
+                        printf("Switch qemu_open: reusing existing RDWR fd=%d via dup -> %d for %s after open failure\n",
+                               shared_fd, dup_fd, path);
+                        switch_track_open_add(dup_fd, path, flags);
+                        return dup_fd;
+                    }
+                    if (errno == EBADF) {
+                        switch_track_open_remove(shared_fd);
+                    }
+                }
+            }
+
+            if (is_qcow2) {
+                int stale_fd = switch_track_open_find_conflicting_ro(path);
+                if (stale_fd >= 0) {
+                    printf("Switch qemu_open: closing stale RDONLY fd=%d for %s before RDWR retry\n",
+                           stale_fd, path);
+                    close(stale_fd);
+                }
+            }
+
+            for (int i = 0; i < 10; i++) {
+                usleep(10000); /* 10ms */
+                fd = open(name, flags, 0666);
+                if (fd >= 0) {
+                    printf("Switch qemu_open: SUCCESS fd=%d path=%s (RDWR retry %d)\n",
+                           fd, path, i + 1);
+                    switch_track_open_add(fd, path, flags);
+                    return fd;
+                }
+                err = errno;
+                if (err != EIO && err != EACCES) {
+                    break;
+                }
+            }
+
+            printf("Switch qemu_open: O_RDWR failed path=%s errno=%d (%s), trying O_RDONLY fallback\n",
+                   path, err, strerror(err));
+            int rdonly_flags = (flags & ~3) | 0;  /* Replace access mode with O_RDONLY */
             fd = open(name, rdonly_flags, 0666);
             if (fd >= 0) {
-                printf("Switch qemu_open: SUCCESS fd=%d (RDONLY fallback)\n", fd);
+                printf("Switch qemu_open: SUCCESS fd=%d path=%s (RDONLY fallback)\n",
+                       fd, path);
+                switch_track_open_add(fd, path, rdonly_flags);
                 return fd;
             }
             err = errno;
         }
-        printf("Switch qemu_open: FAILED errno=%d\n", err);
+        printf("Switch qemu_open: FAILED path=%s errno=%d (%s)\n",
+               path, err, strerror(err));
         // TODO: Set errp properly here with error_setg
         errno = err;
     } else {
-        printf("Switch qemu_open: SUCCESS fd=%d\n", fd);
+        printf("Switch qemu_open: SUCCESS fd=%d path=%s\n", fd, path);
+        switch_track_open_add(fd, path, flags);
     }
     return fd;
 }
@@ -329,6 +568,7 @@ int qemu_open_old(const char *name, int flags, ...)
 int qemu_close(int fd)
 {
     printf("Switch qemu_close: fd=%d\n", fd);
+    switch_track_open_remove(fd);
     return close(fd);
 }
 
@@ -397,29 +637,47 @@ int qemu_fdatasync(int fd)
 
 __attribute__((weak)) ssize_t pread(int fd, void *buf, size_t count, off_t offset)
 {
-    off_t cur = lseek(fd, 0, SEEK_CUR);
+    ssize_t ret;
+    off_t cur;
+
+    pthread_mutex_lock(&g_switch_pread_pwrite_lock);
+
+    cur = lseek(fd, 0, SEEK_CUR);
     if (cur == (off_t)-1) {
+        pthread_mutex_unlock(&g_switch_pread_pwrite_lock);
         return -1;
     }
     if (lseek(fd, offset, SEEK_SET) == (off_t)-1) {
+        pthread_mutex_unlock(&g_switch_pread_pwrite_lock);
         return -1;
     }
-    ssize_t ret = read(fd, buf, count);
-    lseek(fd, cur, SEEK_SET);
+    ret = read(fd, buf, count);
+    (void)lseek(fd, cur, SEEK_SET);
+
+    pthread_mutex_unlock(&g_switch_pread_pwrite_lock);
     return ret;
 }
 
 __attribute__((weak)) ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset)
 {
-    off_t cur = lseek(fd, 0, SEEK_CUR);
+    ssize_t ret;
+    off_t cur;
+
+    pthread_mutex_lock(&g_switch_pread_pwrite_lock);
+
+    cur = lseek(fd, 0, SEEK_CUR);
     if (cur == (off_t)-1) {
+        pthread_mutex_unlock(&g_switch_pread_pwrite_lock);
         return -1;
     }
     if (lseek(fd, offset, SEEK_SET) == (off_t)-1) {
+        pthread_mutex_unlock(&g_switch_pread_pwrite_lock);
         return -1;
     }
-    ssize_t ret = write(fd, buf, count);
-    lseek(fd, cur, SEEK_SET);
+    ret = write(fd, buf, count);
+    (void)lseek(fd, cur, SEEK_SET);
+
+    pthread_mutex_unlock(&g_switch_pread_pwrite_lock);
     return ret;
 }
 
@@ -525,36 +783,11 @@ extern void qemu_set_current_aio_context(AioContext *ctx);
 typedef void (*QEMUTimerListNotifyCB)(void *opaque, int type);
 extern void init_clocks(QEMUTimerListNotifyCB fn);
 
-/* Global AioContext - matches util/main-loop.c */
-static AioContext *qemu_aio_context;
-
-AioContext *qemu_get_aio_context(void)
-{
-    return qemu_aio_context;
-}
-
 /* Timer notify callback - does nothing on Switch (no signal-based timers) */
 static void switch_timer_notify_cb(void *opaque, int type)
 {
     (void)opaque;
     (void)type;
-}
-
-int qemu_init_main_loop(Error **errp)
-{
-    /* Initialize clocks */
-    init_clocks(switch_timer_notify_cb);
-
-    /* Create the main AioContext */
-    qemu_aio_context = aio_context_new(errp);
-    if (!qemu_aio_context) {
-        return -1;
-    }
-
-    /* Set this thread's AioContext to the main one */
-    qemu_set_current_aio_context(qemu_aio_context);
-
-    return 0;
 }
 
 /*

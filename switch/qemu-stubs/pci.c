@@ -10,6 +10,9 @@
 typedef struct PCIDevice PCIDevice;
 typedef struct MemoryRegion MemoryRegion;
 
+/* Keep MSI paths enabled in APIC realize for Switch bring-up. */
+bool msi_nonbroken = true;
+
 /*
  * PCI helpers (stubbed for Switch bring-up)
  */
@@ -104,7 +107,7 @@ typedef struct ISADevice ISADevice;
 
 /* Note: x86_allocate_cpu_irq and i8259_init are now in QEMU core */
 
-void gsi_handler(void *opaque, int n, int level)
+__attribute__((weak)) void gsi_handler(void *opaque, int n, int level)
 {
     (void)opaque;
     (void)n;

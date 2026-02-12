@@ -34,7 +34,18 @@ uint64_t prmvio_read(void *opaque, hwaddr addr, unsigned int size)
 void prmvio_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
 {
     NV2AState *d = opaque;
+#ifdef CONFIG_SWITCH
+    static unsigned prmvio_log_count;
+#endif
 
     nv2a_reg_log_write(NV_PRMVIO, addr, size, val);
+#ifdef CONFIG_SWITCH
+    if (prmvio_log_count < 40 || (prmvio_log_count % 240) == 0) {
+        fprintf(stderr, "Switch: prmvio write addr=0x%02" HWADDR_PRIx
+                        " val=0x%02" PRIx64 " size=%u\n",
+                addr, val, size);
+    }
+    prmvio_log_count++;
+#endif
     vga_ioport_write(&d->vga, addr, val);
 }

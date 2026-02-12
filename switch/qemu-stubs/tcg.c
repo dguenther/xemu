@@ -36,7 +36,9 @@ void ram_block_notify_remove(void *host, size_t size, uint32_t max_size)
     (void)max_size;
 }
 
-int cpu_get_phys_page_attrs_debug(void *cpu, uint64_t addr, void *attrs)
+__attribute__((weak)) int cpu_get_phys_page_attrs_debug(void *cpu,
+                                                         uint64_t addr,
+                                                         void *attrs)
 {
     (void)cpu;
     (void)addr;

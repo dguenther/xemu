@@ -2,7 +2,7 @@
  * QEMU Stubs for Nintendo Switch - QDev Device Model
  *
  * Note: These stubs are needed even with the full QEMU core because
- * the source files that implement these (hw/core/qdev-properties.c) 
+ * the source files that implement these (hw/core/qdev-properties.c)
  * rely on C++ name mangling differences.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
@@ -71,9 +71,20 @@ __attribute__((weak)) const PropertyInfo qdev_prop_netdev = {
     .create = stub_prop_create,
 };
 
-void qdev_connect_gpio_out(DeviceState *dev, int n, qemu_irq pin)
+__attribute__((weak)) void qdev_connect_gpio_out(DeviceState *dev, int n, qemu_irq pin)
 {
     (void)dev; (void)n; (void)pin;
+}
+
+__attribute__((weak)) void qdev_connect_gpio_out_named(DeviceState *dev,
+                                                       const char *name,
+                                                       int n,
+                                                       qemu_irq pin)
+{
+    (void)dev;
+    (void)name;
+    (void)n;
+    (void)pin;
 }
 
 void qdev_finalize_clocklist(DeviceState *dev)
@@ -87,43 +98,17 @@ const char *qdev_fw_name(DeviceState *dev)
     return NULL;
 }
 
-void qdev_init_gpio_out(DeviceState *dev, qemu_irq *pins, int n)
-{
-    (void)dev;
-    (void)pins;
-    (void)n;
-}
-
-void qdev_init_gpio_in(DeviceState *dev, qemu_irq_handler handler, int n)
-{
-    (void)dev;
-    (void)handler;
-    (void)n;
-}
-
-qemu_irq qdev_get_gpio_in(DeviceState *dev, int n)
-{
-    (void)dev;
-    (void)n;
-    return NULL;
-}
-
-void qdev_init_gpio_out_named(DeviceState *dev, qemu_irq *pins, const char *name, int n)
-{
-    (void)dev; (void)pins; (void)name; (void)n;
-}
-
 /*
  * QemuOpts definitions for system/vl.c and other QEMU components.
  * These are normally provided by various source files (qdev-monitor.c,
  * net/net.c, monitor/monitor.c, hw/core/numa.c), but those files have
  * complex dependencies that aren't available in the Switch build.
- * 
+ *
  * NOTE: These must be actual struct definitions with .name fields,
  * NOT NULL pointers, because find_list() in qemu-config.c iterates
  * through vm_config_groups[] and accesses ->name on each entry.
- * 
- * These stubs are still needed because the source files that normally 
+ *
+ * These stubs are still needed because the source files that normally
  * provide them (qdev-monitor.c, etc.) are not included in the build.
  */
 

@@ -24,5 +24,3 @@ void *qemu_chr_open_fd(int fd_in, int fd_out)
     (void)fd_out;
     return NULL;
 }
-
-void *qemu_main_context = NULL;

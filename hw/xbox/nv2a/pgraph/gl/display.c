@@ -27,6 +27,12 @@
 
 #include <math.h>
 
+#ifdef CONFIG_SWITCH
+#ifndef SWITCH_DISPLAY_DIAG_LOGS
+#define SWITCH_DISPLAY_DIAG_LOGS 0
+#endif
+#endif
+
 void pgraph_gl_init_display(NV2AState *d)
 {
     struct PGRAPHState *pg = &d->pgraph;
@@ -372,13 +378,80 @@ static void gl_fence(void)
     glDeleteSync(fence);
 }
 
+static SurfaceBinding *pgraph_gl_pick_display_surface(
+    NV2AState *d,
+    const VGADisplayParams *vga_display_params,
+    bool *used_start_fallback,
+    bool *used_latest_fallback,
+    unsigned *surface_count)
+{
+    PGRAPHState *pg = &d->pgraph;
+    PGRAPHGLState *r = pg->gl_renderer_state;
+    hwaddr start_addr = d->pcrtc.start;
+    hwaddr scanout_addr = start_addr + vga_display_params->line_offset;
+
+    if (used_start_fallback) {
+        *used_start_fallback = false;
+    }
+    if (used_latest_fallback) {
+        *used_latest_fallback = false;
+    }
+    if (surface_count) {
+        *surface_count = 0;
+    }
+
+    SurfaceBinding *surface = pgraph_gl_surface_get_within(d, scanout_addr);
+    if (surface && surface->color) {
+        return surface;
+    }
+
+    /* Some games keep line_offset inconsistent with active scanout. */
+    surface = pgraph_gl_surface_get_within(d, start_addr);
+    if (surface && surface->color) {
+        if (used_start_fallback) {
+            *used_start_fallback = true;
+        }
+        return surface;
+    }
+
+#ifdef CONFIG_SWITCH
+    SurfaceBinding *latest_color_surface = NULL;
+    SurfaceBinding *it;
+    QTAILQ_FOREACH(it, &r->surfaces, entry) {
+        if (!it->color) {
+            continue;
+        }
+        if (surface_count) {
+            (*surface_count)++;
+        }
+        if (!latest_color_surface ||
+            it->frame_time > latest_color_surface->frame_time ||
+            (it->frame_time == latest_color_surface->frame_time &&
+             it->draw_time > latest_color_surface->draw_time)) {
+            latest_color_surface = it;
+        }
+    }
+
+    if (latest_color_surface) {
+        if (used_latest_fallback) {
+            *used_latest_fallback = true;
+        }
+        return latest_color_surface;
+    }
+#endif
+
+    return NULL;
+}
+
 void pgraph_gl_sync(NV2AState *d)
 {
     VGADisplayParams vga_display_params;
     d->vga.get_params(&d->vga, &vga_display_params);
 
-    SurfaceBinding *surface = pgraph_gl_surface_get_within(d, d->pcrtc.start + vga_display_params.line_offset);
+    SurfaceBinding *surface = pgraph_gl_pick_display_surface(
+        d, &vga_display_params, NULL, NULL, NULL);
     if (surface == NULL || !surface->color) {
+        qatomic_set(&d->pgraph.sync_pending, false);
         qemu_event_set(&d->pgraph.sync_complete);
         return;
     }
@@ -407,6 +480,14 @@ int pgraph_gl_get_framebuffer_surface(NV2AState *d)
 {
     PGRAPHState *pg = &d->pgraph;
     PGRAPHGLState *r = pg->gl_renderer_state;
+#ifdef CONFIG_SWITCH
+#if SWITCH_DISPLAY_DIAG_LOGS
+    static unsigned no_surface_log_count;
+    static unsigned have_surface_log_count;
+    static unsigned start_fallback_log_count;
+    static unsigned fallback_surface_log_count;
+#endif
+#endif
 
     qemu_mutex_lock(&d->pfifo.lock);
     // FIXME: Possible race condition with pgraph, consider lock
@@ -414,12 +495,76 @@ int pgraph_gl_get_framebuffer_surface(NV2AState *d)
     VGADisplayParams vga_display_params;
     d->vga.get_params(&d->vga, &vga_display_params);
 
-    SurfaceBinding *surface = pgraph_gl_surface_get_within(
-        d, d->pcrtc.start + vga_display_params.line_offset);
+    bool used_start_fallback = false;
+    bool used_latest_fallback = false;
+    unsigned surface_count = 0;
+    SurfaceBinding *surface = pgraph_gl_pick_display_surface(
+        d, &vga_display_params, &used_start_fallback, &used_latest_fallback,
+        &surface_count);
+
+#ifdef CONFIG_SWITCH
+#if SWITCH_DISPLAY_DIAG_LOGS
+    if (used_start_fallback &&
+        (start_fallback_log_count < 20 ||
+         (start_fallback_log_count % 240) == 0)) {
+        fprintf(stderr,
+                "Switch: nv2a using start-only fb surface start=0x%" HWADDR_PRIx
+                " line_offset=%u vram=0x%" HWADDR_PRIx " %ux%u pitch=%u fmt=0x%x\n",
+                d->pcrtc.start, vga_display_params.line_offset, surface->vram_addr,
+                surface->width, surface->height, surface->pitch,
+                surface->shape.color_format);
+    }
+    if (used_start_fallback) {
+        start_fallback_log_count++;
+    }
+
+    if (used_latest_fallback &&
+        (fallback_surface_log_count < 20 ||
+         (fallback_surface_log_count % 240) == 0)) {
+        fprintf(stderr,
+                "Switch: nv2a using latest fb surface start=0x%" HWADDR_PRIx
+                " line_offset=%u vram=0x%" HWADDR_PRIx " %ux%u pitch=%u fmt=0x%x surfaces=%u\n",
+                d->pcrtc.start, vga_display_params.line_offset, surface->vram_addr,
+                surface->width, surface->height, surface->pitch,
+                surface->shape.color_format, surface_count);
+    }
+    if (used_latest_fallback) {
+        fallback_surface_log_count++;
+    }
+#endif
+#endif
+
     if (surface == NULL || !surface->color) {
+#ifdef CONFIG_SWITCH
+#if SWITCH_DISPLAY_DIAG_LOGS
+        if (no_surface_log_count < 20 || (no_surface_log_count % 240) == 0) {
+                fprintf(stderr,
+                    "Switch: nv2a no fb surface start=0x%" HWADDR_PRIx " line_offset=%u screen_off=%d raster=%u mode=0x%02x surfaces=%u\n",
+                    d->pcrtc.start,
+                    vga_display_params.line_offset,
+                    !!(d->vga.sr[VGA_SEQ_CLOCK_MODE] & VGA_SR01_SCREEN_OFF),
+                    d->pcrtc.raster,
+                    d->vga.cr[0x28],
+                    surface_count);
+        }
+        no_surface_log_count++;
+#endif
+#endif
         qemu_mutex_unlock(&d->pfifo.lock);
         return 0;
     }
+
+#ifdef CONFIG_SWITCH
+#if SWITCH_DISPLAY_DIAG_LOGS
+    if (have_surface_log_count < 10) {
+        fprintf(stderr,
+                "Switch: nv2a fb surface vram=0x%" HWADDR_PRIx " %ux%u pitch=%u fmt=0x%x\n",
+                surface->vram_addr, surface->width, surface->height,
+                surface->pitch, surface->shape.color_format);
+        have_surface_log_count++;
+    }
+#endif
+#endif
 
     assert(surface->color);
     assert(surface->fmt.gl_attachment == GL_COLOR_ATTACHMENT0);

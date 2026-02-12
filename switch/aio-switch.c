@@ -47,6 +47,7 @@ struct AioHandler {
     EventNotifier *e;
     EventNotifierHandler *io_notify;
     int deleted;
+    bool ready;
     void *opaque;
     QLIST_ENTRY(AioHandler) node;
 };
@@ -119,6 +120,7 @@ void aio_set_event_notifier(AioContext *ctx, EventNotifier *e,
         }
         /* Update handler with latest information */
         node->io_notify = io_notify;
+        node->ready = false;
     }
 
     qemu_lockcnt_unlock(&ctx->list_lock);
@@ -149,10 +151,14 @@ bool aio_prepare(AioContext *ctx)
 
     QLIST_FOREACH_RCU (node, &ctx->aio_handlers, node) {
         if (!node->deleted && node->e && node->io_notify) {
-            /* Check if the LEvent is signaled */
+            if (node->ready) {
+                have_ready = true;
+                continue;
+            }
+
+            /* Consume and latch readiness for dispatch. */
             if (node->e->initialized && leventTryWait(node->e->levent)) {
-                /* Re-signal it so aio_poll can process it */
-                leventSignal(node->e->levent);
+                node->ready = true;
                 have_ready = true;
             }
         }
@@ -175,9 +181,8 @@ bool aio_pending(AioContext *ctx)
     QLIST_FOREACH_RCU (node, &ctx->aio_handlers, node) {
         if (!node->deleted && node->e && node->e->initialized &&
             node->io_notify) {
-            if (leventTryWait(node->e->levent)) {
-                /* Re-signal it */
-                leventSignal(node->e->levent);
+            if (node->ready || leventTryWait(node->e->levent)) {
+                node->ready = true;
                 result = true;
                 break;
             }
@@ -202,8 +207,8 @@ static bool aio_dispatch_handlers(AioContext *ctx)
     QLIST_FOREACH_SAFE_RCU (node, &ctx->aio_handlers, node, tmp) {
         if (!node->deleted && node->e && node->e->initialized &&
             node->io_notify) {
-            /* Check and clear the event */
-            if (leventTryWait(node->e->levent)) {
+            if (node->ready || leventTryWait(node->e->levent)) {
+                node->ready = false;
                 node->io_notify(node->e);
 
                 /* aio_notify() does not count as progress */

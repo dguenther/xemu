@@ -31,6 +31,7 @@
 #include "net/net.h"
 #include "hw/boards.h"
 #include "hw/ide/pci.h"
+#include "hw/nmi.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/kvm.h"
 #include "kvm/kvm_i386.h"
@@ -298,6 +299,13 @@ void xbox_init_common(MachineState *machine,
 
     /* smbus devices */
     smbus_xbox_smc_init(smbus, 0x10);
+    const char *eeprom_file =
+        object_property_get_str(qdev_get_machine(), "eeprom", NULL);
+    if (eeprom_file && *eeprom_file) {
+        I2CSlave *eeprom = i2c_slave_new("smbus-storage", 0x54);
+        qdev_prop_set_string(DEVICE(eeprom), "file", eeprom_file);
+        i2c_slave_realize_and_unref(eeprom, smbus, &error_fatal);
+    }
 
     const char *video_encoder =
         object_property_get_str(qdev_get_machine(), "video-encoder", NULL);
@@ -360,6 +368,21 @@ static void machine_set_bootrom(Object *obj, const char *value, Error **errp)
 
     g_free(ms->bootrom);
     ms->bootrom = g_strdup(value);
+}
+
+static char *machine_get_eeprom(Object *obj, Error **errp)
+{
+    XboxMachineState *ms = XBOX_MACHINE(obj);
+
+    return g_strdup(ms->eeprom);
+}
+
+static void machine_set_eeprom(Object *obj, const char *value, Error **errp)
+{
+    XboxMachineState *ms = XBOX_MACHINE(obj);
+
+    g_free(ms->eeprom);
+    ms->eeprom = g_strdup(value);
 }
 
 static char *machine_get_avpack(Object *obj, Error **errp)
@@ -470,6 +493,10 @@ static void xbox_machine_options(MachineClass *m)
                                   machine_set_bootrom);
     object_class_property_set_description(oc, "bootrom", "Xbox bootrom file");
 
+    object_class_property_add_str(oc, "eeprom", machine_get_eeprom,
+                                  machine_set_eeprom);
+    object_class_property_set_description(oc, "eeprom", "Xbox EEPROM file");
+
     object_class_property_add_str(oc, "avpack", machine_get_avpack,
                                   machine_set_avpack);
     object_class_property_set_description(
@@ -499,6 +526,7 @@ static void xbox_machine_options(MachineClass *m)
 
 static inline void xbox_machine_initfn(Object *obj)
 {
+    object_property_set_str(obj, "eeprom", "", &error_fatal);
     object_property_set_str(obj, "avpack", "hdtv", &error_fatal);
     object_property_set_bool(obj, "short-animation", false, &error_fatal);
     object_property_set_str(obj, "smc-version", "P01", &error_fatal);
@@ -521,8 +549,7 @@ static const TypeInfo pc_machine_type_xbox = {
     .class_size = sizeof(XboxMachineClass),
     .class_init = xbox_machine_class_init,
     .interfaces = (InterfaceInfo[]) {
-         // { TYPE_HOTPLUG_HANDLER },
-         // { TYPE_NMI },
+         { TYPE_NMI },
          { }
     },
 };

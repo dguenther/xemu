@@ -53,6 +53,17 @@ SOURCES     := switch
 INCLUDES    := switch include
 
 #---------------------------------------------------------------------------------
+# Switch diagnostics knobs (set on make command line to override)
+#---------------------------------------------------------------------------------
+SWITCH_CPU_DETAIL_LOGS ?= 0
+SWITCH_IO_DETAIL_LOGS ?= 0
+SWITCH_DISPLAY_DIAG_LOGS ?= 0
+SWITCH_SMBUS_DIAG_LOGS ?= 0
+SWITCH_PFIFO_DIAG_WRITE_LIMIT ?= 4096
+SWITCH_PCRTC_DIAG_WRITE_LIMIT ?= 4096
+SWITCH_DISPLAY_REFRESH_INTERVAL ?= 30
+
+#---------------------------------------------------------------------------------
 # Compiler flags
 #---------------------------------------------------------------------------------
 ARCH := -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE
@@ -72,6 +83,13 @@ CFLAGS += -DXBOX=1 \
           -DNEED_CPU_H \
           -DCOMPILING_PER_TARGET \
           -DCONFIG_TARGET=\"config-target.h\" \
+          -DSWITCH_CPU_DETAIL_LOGS=$(SWITCH_CPU_DETAIL_LOGS) \
+          -DSWITCH_IO_DETAIL_LOGS=$(SWITCH_IO_DETAIL_LOGS) \
+          -DSWITCH_DISPLAY_DIAG_LOGS=$(SWITCH_DISPLAY_DIAG_LOGS) \
+          -DSWITCH_SMBUS_DIAG_LOGS=$(SWITCH_SMBUS_DIAG_LOGS) \
+          -DSWITCH_PFIFO_DIAG_WRITE_LIMIT=$(SWITCH_PFIFO_DIAG_WRITE_LIMIT) \
+          -DSWITCH_PCRTC_DIAG_WRITE_LIMIT=$(SWITCH_PCRTC_DIAG_WRITE_LIMIT) \
+          -DSWITCH_DISPLAY_REFRESH_INTERVAL=$(SWITCH_DISPLAY_REFRESH_INTERVAL) \
           -include $(TOPDIR)/switch/config-switch.h \
           -include $(TOPDIR)/switch/platform_stubs.h
 
@@ -88,7 +106,7 @@ LDFLAGS := -specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) \
 # Note: Order matters for linking. glad must come before EGL/GL libs.
 # glib-2.0 provides GLib functionality (hash tables, strings, etc.)
 # GLib requires pcre2-8 for regex, iconv for character encoding, and intl for i18n
-LIBS := -lglib-2.0 -lpcre2-8 -liconv -lintl -lglad -lEGL -lSDL2 -lglapi -ldrm_nouveau -lpixman-1 \
+LIBS := -lglib-2.0 -lpcre2-8 -liconv -lintl -lglad -lEGL -lSDL2 -lglapi -ldrm_nouveau -lpixman-1 -lz -lxxhash \
         -lnx -lm -lpthread
 
 #---------------------------------------------------------------------------------
@@ -146,9 +164,10 @@ STUB_SRCS := $(wildcard switch/qemu-stubs/*.c)
 SWITCH_SRCS := \
     switch/main-switch.c \
     switch/gl-owner.c \
+    switch/cpu-debug.c \
+    switch/tcg-jit-switch.c \
     switch/oslib-switch.c \
     $(STUB_SRCS) \
-    switch/vga-min.c \
     switch/event_notifier-switch.c \
     switch/noc_file_dialog_switch.c \
     switch/stb_image_impl.c \
@@ -208,9 +227,13 @@ UTIL_SRCS := \
     util/async.c \
     util/block-helpers.c \
     util/aiocb.c \
+    util/aio-wait.c \
     util/throttle.c \
     util/timed-average.c \
-    util/hexdump.c
+    util/hexdump.c \
+    event-loop-base.c \
+    util/main-loop.c \
+    util/defer-call.c
 
 # Character device backends
 # Minimal set for Xbox emulation (serial devices use "null" backend)
@@ -274,8 +297,10 @@ QAPI_SRCS := \
     build/qapi/qapi-visit-machine.c \
     build/qapi/qapi-visit-machine-common.c \
     build/qapi/qapi-visit-run-state.c \
+    build/qapi/qapi-visit-misc.c \
     build/qapi/qapi-events-block.c \
     build/qapi/qapi-events-block-core.c \
+    build/qapi/qapi-events-misc.c \
     build/qapi/qapi-events-run-state.c \
     build/trace/trace-block.c \
     build/trace/trace-util.c \
@@ -342,36 +367,51 @@ BLOCK_SRCS := \
 
 # HW base sources
 HW_BASE_SRCS := \
+    hw/display/vga.c \
     hw/block/block.c \
     hw/block/hd-geometry.c \
+    hw/dma/i8257.c \
+    hw/char/serial.c \
+    hw/core/loader.c \
     hw/core/qdev.c \
+    hw/core/gpio.c \
     hw/core/qdev-properties.c \
     hw/core/qdev-properties-system.c \
     hw/core/bus.c \
     hw/core/cpu-common.c \
+    hw/core/cpu-sysemu.c \
     hw/core/hotplug.c \
     hw/core/qdev-hotplug.c \
     hw/core/resettable.c \
     hw/core/reset.c \
     hw/core/resetcontainer.c \
     hw/core/clock.c \
+    hw/core/nmi.c \
     hw/core/irq.c \
     hw/core/sysbus.c \
     hw/core/machine.c \
     hw/core/vmstate-if.c \
+    hw/acpi/aml-build.c \
     hw/acpi/core.c \
     hw/acpi/acpi_interface.c \
     hw/i2c/core.c \
     hw/i2c/smbus_slave.c \
     hw/i2c/smbus_master.c \
     hw/i386/pc.c \
+    hw/i386/x86.c \
+    hw/i386/x86-common.c \
     hw/i386/x86-cpu.c \
+    hw/i386/vapic.c \
+    hw/intc/apic.c \
+    hw/intc/apic_common.c \
+    hw/intc/kvm_irqcount.c \
     hw/intc/i8259.c \
     hw/intc/i8259_common.c \
     hw/intc/intc.c \
+    hw/intc/ioapic_common.c \
+    hw/intc/ioapic.c \
     hw/timer/i8254.c \
     hw/timer/i8254_common.c \
-    switch/x86-machine-stub.c \
     hw/isa/isa-bus.c \
     switch/isa-pcspk-stub.c \
     hw/audio/soundhw.c \
@@ -414,7 +454,12 @@ USB_SRCS := \
 XBOX_HW_SRCS := \
     hw/xbox/xbox.c \
     hw/xbox/xbox_pci.c \
+    hw/xbox/smbus_adm1032.c \
+    hw/xbox/smbus_cx25871.c \
+    hw/xbox/smbus_fs454.c \
+    hw/xbox/smbus_storage.c \
     hw/xbox/smbus_xbox_smc.c \
+    hw/xbox/smbus_xcalibur.c \
     hw/xbox/amd_smbus.c \
     hw/xbox/mcpx/aci.c \
     hw/xbox/mcpx/nvnet/nvnet.c \
@@ -562,6 +607,7 @@ TCG_SRCS := \
 
 # system sources
 SYSTEM_SRCS := \
+    system/bootdevice.c \
     system/memory.c \
     system/physmem.c \
     system/ioport.c \
@@ -583,9 +629,11 @@ SYSTEM_SRCS := \
 TARGET_I386_SRCS := \
     target/i386/cpu.c \
     target/i386/cpu-sysemu.c \
+    target/i386/cpu-apic.c \
     target/i386/gdbstub.c \
     target/i386/helper.c \
     target/i386/xsave_helper.c \
+    target/i386/tcg/tcg-cpu.c \
     target/i386/tcg/translate.c \
     target/i386/tcg/cc_helper.c \
     target/i386/tcg/excp_helper.c \

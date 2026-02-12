@@ -16,6 +16,11 @@
 #define CONFIG_SWITCH 1
 #define CONFIG_POSIX 1
 
+#ifndef SSIZE_MAX
+#include <limits.h>
+#define SSIZE_MAX LONG_MAX
+#endif
+
 /* Disable Linux-specific features */
 #undef CONFIG_LINUX
 #undef CONFIG_DARWIN

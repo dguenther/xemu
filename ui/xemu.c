@@ -69,6 +69,10 @@
 #endif
 
 #include "gl-owner.h"
+
+#ifndef SWITCH_DISPLAY_DIAG_LOGS
+#define SWITCH_DISPLAY_DIAG_LOGS 0
+#endif
 #endif
 
 #ifdef _WIN32
@@ -1207,9 +1211,14 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
     assert(scon->opengl);
     bool flip_required = false;
 #ifdef CONFIG_SWITCH
+    static int gl_owner_skip_log_count;
+#if SWITCH_DISPLAY_DIAG_LOGS
     static int no_surface_log_count;
     static int refresh_log_count;
-    static int gl_owner_skip_log_count;
+    static int fallback_tex_log_count;
+    static int fallback_probe_frame_count;
+    static uint32_t fallback_last_hash;
+#endif
 #endif
 
     update_fps();
@@ -1226,6 +1235,7 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
      */
     GLuint tex = nv2a_get_framebuffer_surface();
 #ifdef CONFIG_SWITCH
+#if SWITCH_DISPLAY_DIAG_LOGS
     if (refresh_log_count < 5) {
         fprintf(stderr,
                 "Switch: sdl2_gl_refresh tex=%u surface=%p image=%p\n",
@@ -1234,6 +1244,7 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
                 scon->surface ? (void *)scon->surface->image : NULL);
         refresh_log_count++;
     }
+#endif
 #endif
 
 #ifdef CONFIG_SWITCH
@@ -1248,12 +1259,14 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
     }
     if (!scon->surface) {
         scon->surface = qemu_console_surface(scon->dcl.con);
+#if SWITCH_DISPLAY_DIAG_LOGS
         if (scon->surface && no_surface_log_count < 5) {
             fprintf(stderr,
                     "Switch: recovered surface=%p image=%p\n",
                     (void *)scon->surface,
                     (void *)scon->surface->image);
         }
+#endif
     }
 #endif
 
@@ -1266,6 +1279,7 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
     if (tex == 0) {
         if (!scon->surface || !scon->surface->image) {
 #ifdef CONFIG_SWITCH
+#if SWITCH_DISPLAY_DIAG_LOGS
             if (no_surface_log_count < 5) {
                 fprintf(stderr,
                         "Switch: no surface for refresh (scon=%p surface=%p image=%p)\n",
@@ -1274,6 +1288,7 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
                         scon->surface ? (void *)scon->surface->image : NULL);
                 no_surface_log_count++;
             }
+#endif
 #endif
 #ifdef CONFIG_SWITCH
             SDL_GL_MakeCurrent(NULL, NULL);
@@ -1286,6 +1301,51 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
         scon->updates++;
         tex = scon->surface->texture;
         flip_required = true;
+#ifdef CONFIG_SWITCH
+#if SWITCH_DISPLAY_DIAG_LOGS
+        if (fallback_tex_log_count < 10) {
+            fprintf(stderr,
+                    "Switch: fallback surface tex=%u fmt=%u stride=%d %dx%d image=%p\n",
+                    tex,
+                    (unsigned)surface_format(scon->surface),
+                    surface_stride(scon->surface),
+                    surface_width(scon->surface),
+                    surface_height(scon->surface),
+                    surface_data(scon->surface));
+            fallback_tex_log_count++;
+        }
+        if (scon->surface->image) {
+            const uint8_t *data = surface_data(scon->surface);
+            int stride = surface_stride(scon->surface);
+            int height = surface_height(scon->surface);
+            int probe_rows = MIN(height, 8);
+            uint32_t hash = 2166136261u;
+            uint32_t first_px = 0;
+
+            if (stride > 0 && probe_rows > 0) {
+                int probe_len = stride * probe_rows;
+                if (probe_len > 4096) {
+                    probe_len = 4096;
+                }
+                for (int i = 0; i < probe_len; i++) {
+                    hash ^= data[i];
+                    hash *= 16777619u;
+                }
+                memcpy(&first_px, data, sizeof(first_px));
+            }
+
+            fallback_probe_frame_count++;
+            if (hash != fallback_last_hash ||
+                (fallback_probe_frame_count % 120) == 0) {
+                fprintf(stderr,
+                        "Switch: fallback fb hash=0x%08x first_px=0x%08x stride=%d %dx%d\n",
+                        hash, first_px, stride, surface_width(scon->surface),
+                        height);
+                fallback_last_hash = hash;
+            }
+        }
+#endif
+#endif
     }
 
     /* FIXME: Finer locking. Event handlers in segments of the code expect
@@ -1294,8 +1354,8 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
      * possible lengthy blocking (for vsync).
      */
     qemu_mutex_lock_main_loop();
-#ifndef CONFIG_SWITCH
     bql_lock();
+#ifndef CONFIG_SWITCH
     sdl2_poll_events(scon);
 #endif
 
@@ -1306,9 +1366,7 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
     xemu_hud_render();
 
     // Release BQL before swapping (which may sleep if swap interval is not immediate)
-#ifndef CONFIG_SWITCH
     bql_unlock();
-#endif
     qemu_mutex_unlock_main_loop();
 
     glFinish();
@@ -1321,16 +1379,12 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
 
     /* VGA update (see note above) + vblank */
     qemu_mutex_lock_main_loop();
-#ifndef CONFIG_SWITCH
     bql_lock();
-#endif
     graphic_hw_update(scon->dcl.con);
     if (scon->updates && scon->surface) {
         scon->updates = 0;
     }
-#ifndef CONFIG_SWITCH
     bql_unlock();
-#endif
     qemu_mutex_unlock_main_loop();
 
     /*

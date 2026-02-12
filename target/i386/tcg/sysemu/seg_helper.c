@@ -132,6 +132,9 @@ bool x86_cpu_exec_halt(CPUState *cpu)
 {
     X86CPU *x86_cpu = X86_CPU(cpu);
     CPUX86State *env = &x86_cpu->env;
+#ifdef CONFIG_SWITCH
+    static unsigned halt_no_work_log_count;
+#endif
 
     if (cpu->interrupt_request & CPU_INTERRUPT_POLL) {
         bql_lock();
@@ -141,6 +144,16 @@ bool x86_cpu_exec_halt(CPUState *cpu)
     }
 
     if (!cpu_has_work(cpu)) {
+#ifdef CONFIG_SWITCH
+        if (halt_no_work_log_count < 20 ||
+            (halt_no_work_log_count % 20000) == 0) {
+            fprintf(stderr,
+                    "Switch: cpu_exec_halt no-work cpu=%d eip=0x%08x int_req=0x%x halted=%d\n",
+                    cpu->cpu_index, env->eip, cpu->interrupt_request,
+                    cpu->halted ? 1 : 0);
+        }
+        halt_no_work_log_count++;
+#endif
         return false;
     }
 
@@ -167,6 +180,10 @@ bool x86_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
     X86CPU *cpu = X86_CPU(cs);
     CPUX86State *env = &cpu->env;
     int intno;
+#ifdef CONFIG_SWITCH
+    static unsigned hardirq_log_count;
+    static unsigned hardirq_none_log_count;
+#endif
 
     interrupt_request = x86_cpu_pending_interrupt(cs, interrupt_request);
     if (!interrupt_request) {
@@ -204,6 +221,23 @@ bool x86_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
         cs->interrupt_request &= ~(CPU_INTERRUPT_HARD |
                                    CPU_INTERRUPT_VIRQ);
         intno = cpu_get_pic_interrupt(env);
+#ifdef CONFIG_SWITCH
+        if (intno < 0) {
+            if (hardirq_none_log_count < 20 ||
+                (hardirq_none_log_count % 20000) == 0) {
+                fprintf(stderr,
+                        "Switch: cpu_exec_interrupt HARD with no vector cpu=%d eip=0x%08x\n",
+                        cs->cpu_index, env->eip);
+            }
+            hardirq_none_log_count++;
+        } else if (hardirq_log_count < 20 ||
+                   (hardirq_log_count % 20000) == 0) {
+            fprintf(stderr,
+                    "Switch: cpu_exec_interrupt HARD int=0x%02x cpu=%d eip=0x%08x\n",
+                    intno, cs->cpu_index, env->eip);
+            hardirq_log_count++;
+        }
+#endif
         qemu_log_mask(CPU_LOG_INT,
                       "Servicing hardware INT=0x%02x\n", intno);
         do_interrupt_x86_hardirq(env, intno, 1);

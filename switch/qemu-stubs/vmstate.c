@@ -20,6 +20,7 @@ __attribute__((weak)) const VMStateInfo vmstate_info_int32 = { 0 };
 __attribute__((weak)) const VMStateInfo vmstate_info_uint32 = { 0 };
 __attribute__((weak)) const VMStateInfo vmstate_info_uint64 = { 0 };
 __attribute__((weak)) const VMStateInfo vmstate_info_unused_buffer = { 0 };
+__attribute__((weak)) const VMStateInfo vmstate_info_uint8_equal = { 0 };
 extern const void *vmstate_info_buffer;
 const void *vmstate_info_buffer = NULL;
 

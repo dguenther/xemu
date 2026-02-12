@@ -30,6 +30,12 @@
 #include "hw/i2c/smbus_master.h"
 #include "hw/irq.h"
 
+#ifdef CONFIG_SWITCH
+#ifndef SWITCH_SMBUS_DIAG_LOGS
+#define SWITCH_SMBUS_DIAG_LOGS 0
+#endif
+#endif
+
 // #define DEBUG
 #ifdef DEBUG
 # define SMBUS_DPRINTF(format, ...)     printf(format, ## __VA_ARGS__)
@@ -86,9 +92,20 @@ static void amd756_smb_transaction(AMD756SMBus *s)
     uint8_t cmd  = s->smb_cmd;
     uint8_t addr = (s->smb_addr >> 1) & 0x7f;
     I2CBus *bus  = s->smbus;
-    int ret;
+    int ret = -1;
 
     SMBUS_DPRINTF("SMBus trans addr=0x%02x prot=0x%02x\n", addr, prot);
+#ifdef CONFIG_SWITCH
+#if SWITCH_SMBUS_DIAG_LOGS
+    static unsigned smbus_txn_log_count;
+    if (smbus_txn_log_count < 400 || (smbus_txn_log_count % 2000) == 0) {
+        fprintf(stderr,
+                "Switch: smbus txn addr=0x%02x cmd=0x%02x prot=0x%02x read=%u d0=0x%02x d1=0x%02x\n",
+                addr, cmd, prot, read ? 1 : 0, s->smb_data0, s->smb_data1);
+    }
+    smbus_txn_log_count++;
+#endif
+#endif
 
     switch (prot) {
     case AMD756_QUICK:
@@ -152,12 +169,36 @@ done:
     if (ret < 0) {
         goto error;
     }
+#ifdef CONFIG_SWITCH
+#if SWITCH_SMBUS_DIAG_LOGS
+    {
+        static unsigned smbus_done_log_count;
+        if (smbus_done_log_count < 400 || (smbus_done_log_count % 2000) == 0) {
+            fprintf(stderr,
+                    "Switch: smbus done ret=0x%x stat=0x%02x d0=0x%02x d1=0x%02x\n",
+                    ret, s->smb_stat, s->smb_data0, s->smb_data1);
+        }
+        smbus_done_log_count++;
+    }
+#endif
+#endif
     s->smb_stat |= GS_HCYC_STS;
     goto out;
 out:
     return;
 
 error:
+#ifdef CONFIG_SWITCH
+    {
+        static unsigned smbus_err_log_count;
+        if (smbus_err_log_count < 200 || (smbus_err_log_count % 2000) == 0) {
+            fprintf(stderr,
+                    "Switch: smbus error ret=0x%x stat=0x%02x addr=0x%02x cmd=0x%02x prot=0x%02x\n",
+                    ret, s->smb_stat, addr, cmd, prot);
+        }
+        smbus_err_log_count++;
+    }
+#endif
     s->smb_stat |= GS_PRERR_STS;
     return;
 }
@@ -168,6 +209,16 @@ void amd756_smb_ioport_writeb(void *opaque, uint32_t addr, uint32_t val)
     addr &= 0x3f;
 
     SMBUS_DPRINTF("SMB writeb port=0x%04x val=0x%02x\n", addr, val);
+#ifdef CONFIG_SWITCH
+#if SWITCH_SMBUS_DIAG_LOGS
+    static unsigned smbus_io_write_log_count;
+    if (smbus_io_write_log_count < 400 || (smbus_io_write_log_count % 4000) == 0) {
+        fprintf(stderr, "Switch: smbus io write off=0x%02x val=0x%02x\n",
+                addr, val & 0xff);
+    }
+    smbus_io_write_log_count++;
+#endif
+#endif
 
     switch (addr) {
     case SMB_GLOBAL_STATUS:
@@ -273,6 +324,16 @@ uint32_t amd756_smb_ioport_readb(void *opaque, uint32_t addr)
         break;
     }
     SMBUS_DPRINTF("SMB readb port=0x%04x val=0x%02x\n", addr, val);
+#ifdef CONFIG_SWITCH
+#if SWITCH_SMBUS_DIAG_LOGS
+    static unsigned smbus_io_read_log_count;
+    if (smbus_io_read_log_count < 400 || (smbus_io_read_log_count % 4000) == 0) {
+        fprintf(stderr, "Switch: smbus io read  off=0x%02x val=0x%02x\n",
+                addr, val & 0xff);
+    }
+    smbus_io_read_log_count++;
+#endif
+#endif
     return val;
 }
 

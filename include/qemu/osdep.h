@@ -829,6 +829,19 @@ static inline void qemu_thread_jit_write(void)
 {
     pthread_jit_write_protect_np(false);
 }
+#elif defined(CONFIG_SWITCH)
+void qemu_switch_tcg_jit_execute(void);
+void qemu_switch_tcg_jit_write(void);
+
+static inline void qemu_thread_jit_execute(void)
+{
+    qemu_switch_tcg_jit_execute();
+}
+
+static inline void qemu_thread_jit_write(void)
+{
+    qemu_switch_tcg_jit_write();
+}
 #else
 static inline void qemu_thread_jit_write(void) {}
 static inline void qemu_thread_jit_execute(void) {}

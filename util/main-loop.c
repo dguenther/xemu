@@ -61,7 +61,7 @@ QemuMutex qemu_main_loop_lock;
 #include <sys/wait.h>
 #endif
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(CONFIG_SWITCH)
 
 /* If we have signalfd, we mask out the signals we want to handle and then
  * use signalfd to listen for them.  We rely on whatever the current signal

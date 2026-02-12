@@ -2803,7 +2803,26 @@ void qmp_x_exit_preconfig(Error **errp)
             }
         }
     } else if (autostart) {
+#ifdef CONFIG_SWITCH
+        Error *cont_err = NULL;
+        fprintf(stderr, "Switch: qmp_x_exit_preconfig autostart=1, calling qmp_cont\n");
+        qmp_cont(&cont_err);
+        if (cont_err) {
+            fprintf(stderr, "Switch: qmp_cont failed: %s\n",
+                    error_get_pretty(cont_err));
+            error_free(cont_err);
+        } else {
+            fprintf(stderr, "Switch: qmp_cont succeeded, runstate=%s running=%d\n",
+                    RunState_str(runstate_get()), runstate_is_running() ? 1 : 0);
+        }
+#else
         qmp_cont(NULL);
+#endif
+#ifdef CONFIG_SWITCH
+    } else {
+        fprintf(stderr, "Switch: qmp_x_exit_preconfig autostart=0 incoming=%s\n",
+                incoming ? incoming : "(null)");
+#endif
     }
 }
 
@@ -2907,6 +2926,23 @@ void qemu_init(int argc, char **argv)
         }
     }
 
+    const char *eeprom_path = get_eeprom_path();
+    char *eeprom_machine_arg = NULL;
+    if (!eeprom_path) {
+        autostart = 0;
+#ifdef CONFIG_SWITCH
+        fprintf(stderr, "Switch: autostart disabled (eeprom path unavailable)\n");
+#endif
+    }
+
+#ifdef CONFIG_SWITCH
+    if (eeprom_path) {
+        char *escaped_eeprom_path = strdup_double_commas(eeprom_path);
+        eeprom_machine_arg = g_strdup_printf(",eeprom=%s", escaped_eeprom_path);
+        free(escaped_eeprom_path);
+    }
+#endif
+
     const char *avpack_str = (const char *[]){
         "scart",
         "hdtv",
@@ -2917,38 +2953,48 @@ void qemu_init(int argc, char **argv)
         "none",
     }[g_config.sys.avpack];
 
-    fake_argv[fake_argc++] = g_strdup_printf("xbox%s%s%s,avpack=%s",
+    fake_argv[fake_argc++] = g_strdup_printf("xbox%s%s%s%s,avpack=%s",
         (bootrom_arg != NULL) ? bootrom_arg : "",
         g_config.general.skip_boot_anim ? ",short-animation=on" : "",
         ",kernel-irqchip=off",
+        (eeprom_machine_arg != NULL) ? eeprom_machine_arg : "",
         avpack_str
         );
 
     if (bootrom_arg != NULL) {
         g_free(bootrom_arg);
     }
-
-    const char *eeprom_path = get_eeprom_path();
+#ifdef CONFIG_SWITCH
+    if (eeprom_machine_arg != NULL) {
+        g_free(eeprom_machine_arg);
+    }
+#else
     if (eeprom_path) {
         fake_argv[fake_argc++] = strdup("-device");
         char *escaped_eeprom_path = strdup_double_commas(eeprom_path);
         fake_argv[fake_argc++] = g_strdup_printf("smbus-storage,file=%s",
                                                  escaped_eeprom_path);
         free(escaped_eeprom_path);
-    } else {
-        autostart = 0;
     }
+#endif
 
     const char *flashrom_path = g_config.sys.files.flashrom_path;
     if (g_config.general.show_welcome) {
         // Don't display an error if this is the first boot. Give user a chance
         // to configure the path.
         autostart = 0;
+#ifdef CONFIG_SWITCH
+        fprintf(stderr, "Switch: autostart disabled (show_welcome=true)\n");
+#endif
     } else if (xemu_check_file(flashrom_path)) {
         char *msg = g_strdup_printf("Failed to open flash file '%s'. Please check machine settings.", flashrom_path);
         xemu_queue_error_message(msg);
         g_free(msg);
         autostart = 0;
+#ifdef CONFIG_SWITCH
+        fprintf(stderr, "Switch: autostart disabled (flash check failed: %s)\n",
+                flashrom_path ? flashrom_path : "(null)");
+#endif
     } else {
         fake_argv[fake_argc++] = strdup("-bios");
         fake_argv[fake_argc++] = strdup(flashrom_path);
@@ -3327,6 +3373,9 @@ void qemu_init(int argc, char **argv)
                 break;
             case QEMU_OPTION_S:
                 autostart = 0;
+#ifdef CONFIG_SWITCH
+                fprintf(stderr, "Switch: autostart disabled (-S option)\n");
+#endif
                 break;
             case QEMU_OPTION_k:
                 keyboard_layout = optarg;

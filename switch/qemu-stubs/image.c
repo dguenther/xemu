@@ -10,6 +10,7 @@
 /*
  * Image size helper
  */
+__attribute__((weak))
 int64_t get_image_size(const char *filename)
 {
     if (!filename || !filename[0]) {
@@ -31,6 +32,7 @@ int64_t get_image_size(const char *filename)
     return (int64_t)size;
 }
 
+__attribute__((weak))
 ssize_t load_image_size(const char *filename, void *addr, size_t size)
 {
     (void)filename;
@@ -39,12 +41,14 @@ ssize_t load_image_size(const char *filename, void *addr, size_t size)
     return -1;
 }
 
+__attribute__((weak))
 ssize_t rom_add_vga(const char *file)
 {
     (void)file;
     return -1;
 }
 
+__attribute__((weak))
 ssize_t rom_add_option(const char *file, int32_t bootindex)
 {
     (void)file;
@@ -52,15 +56,18 @@ ssize_t rom_add_option(const char *file, int32_t bootindex)
     return -1;
 }
 
-void rom_set_order_override(const char *order)
+__attribute__((weak))
+void rom_set_order_override(int order)
 {
     (void)order;
 }
 
+__attribute__((weak))
 void rom_reset_order_override(void)
 {
 }
 
+__attribute__((weak))
 int rom_check_and_register_reset(void)
 {
     return 0;

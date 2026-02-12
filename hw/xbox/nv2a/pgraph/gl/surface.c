@@ -1090,6 +1090,9 @@ static void update_surface_part(NV2AState *d, bool upload, bool color)
 {
     PGRAPHState *pg = &d->pgraph;
     PGRAPHGLState *r = pg->gl_renderer_state;
+#ifdef CONFIG_SWITCH
+    static unsigned surface_create_log_count;
+#endif
 
     SurfaceBinding entry;
     populate_surface_binding_entry(d, color, &entry);
@@ -1227,6 +1230,21 @@ static void update_surface_part(NV2AState *d, bool upload, bool color)
             if (color && r->zeta_binding && (r->zeta_binding->width != entry.width || r->zeta_binding->height != entry.height)) {
                 pg->surface_zeta.buffer_dirty = true;
             }
+#ifdef CONFIG_SWITCH
+            if (surface_create_log_count < 20 ||
+                (surface_create_log_count % 240) == 0) {
+                fprintf(stderr,
+                        "Switch: nv2a created %s surface addr=0x%" HWADDR_PRIx " %ux%u pitch=%u fmt=0x%x\n",
+                        color ? "color" : "zeta",
+                        entry.vram_addr,
+                        entry.width,
+                        entry.height,
+                        entry.pitch,
+                        color ? pg->surface_shape.color_format
+                              : pg->surface_shape.zeta_format);
+            }
+            surface_create_log_count++;
+#endif
         }
 
 #define TRACE_ARGS found->vram_addr, found->width, found->height, \
@@ -1304,6 +1322,11 @@ void pgraph_gl_surface_update(NV2AState *d, bool upload, bool color_write,
 {
     PGRAPHState *pg = &d->pgraph;
     PGRAPHGLState *r = pg->gl_renderer_state;
+#ifdef CONFIG_SWITCH
+    static unsigned surface_update_log_count;
+    static unsigned surface_upload_count;
+    static unsigned surface_draw_count;
+#endif
 
     pg->surface_shape.z_format =
         GET_MASK(pgraph_reg_r(pg, NV_PGRAPH_SETUPRASTER),
@@ -1312,6 +1335,34 @@ void pgraph_gl_surface_update(NV2AState *d, bool upload, bool color_write,
     color_write = color_write &&
             (pg->clearing || pgraph_color_write_enabled(pg));
     zeta_write = zeta_write && (pg->clearing || pgraph_zeta_write_enabled(pg));
+
+#ifdef CONFIG_SWITCH
+    if (upload) {
+        surface_upload_count++;
+    } else {
+        surface_draw_count++;
+    }
+    if (surface_update_log_count < 20 ||
+        (surface_update_log_count % 240) == 0) {
+        fprintf(stderr,
+                "Switch: nv2a surface_update upload=%d color_write=%d zeta_write=%d color_dirty=%d zeta_dirty=%d color_off=0x%" HWADDR_PRIx " zeta_off=0x%" HWADDR_PRIx " color_pitch=%u zeta_pitch=%u color_fmt=0x%x zeta_fmt=0x%x type=%u total(up=%u draw=%u)\n",
+                upload ? 1 : 0,
+                color_write ? 1 : 0,
+                zeta_write ? 1 : 0,
+                pg->surface_color.buffer_dirty ? 1 : 0,
+                pg->surface_zeta.buffer_dirty ? 1 : 0,
+                pg->surface_color.offset,
+                pg->surface_zeta.offset,
+                pg->surface_color.pitch,
+                pg->surface_zeta.pitch,
+                pg->surface_shape.color_format,
+                pg->surface_shape.zeta_format,
+                pg->surface_type,
+                surface_upload_count,
+                surface_draw_count);
+    }
+    surface_update_log_count++;
+#endif
 
     if (upload) {
         bool fb_dirty = framebuffer_dirty(pg);

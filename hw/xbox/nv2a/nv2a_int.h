@@ -33,6 +33,7 @@
 #include "qemu/error-report.h"
 #include "migration/vmstate.h"
 #include "sysemu/runstate.h"
+#include "hw/core/cpu.h"
 #include "ui/console.h"
 #include "hw/display/vga_int.h"
 #include "hw/pci/pci_device.h"
@@ -91,6 +92,21 @@ typedef struct NV2AState {
         uint32_t pending_interrupts;
         uint32_t enabled_interrupts;
     } pmc;
+
+    struct {
+        /* BIOS probes these undocumented PBUS registers during early init. */
+        uint32_t probe_data;
+        uint32_t probe_ctrl0;
+        uint32_t probe_ctrl1;
+        uint32_t lfsr;
+#ifdef CONFIG_SWITCH
+        /*
+         * Switch-only shadow for undocumented PBUS registers touched by the
+         * MCPX boot path (0x200..0x2ff, dword aligned).
+         */
+        uint32_t shadow_regs[0x100 / sizeof(uint32_t)];
+#endif
+    } pbus;
 
     struct {
         uint32_t pending_interrupts;
@@ -161,6 +177,11 @@ extern const NV2ABlockInfo blocktable[NV_NUM_BLOCKS];
 
 void nv2a_update_irq(NV2AState *d);
 
+#ifdef CONFIG_SWITCH
+void switch_debug_note_nv2a_block_write(bool pfifo, bool pgraph, bool pcrtc,
+                                        bool post_kernel, vaddr pc);
+#endif
+
 static inline
 void nv2a_reg_log_read(int block, hwaddr addr, unsigned int size, uint64_t val)
 {
@@ -168,6 +189,36 @@ void nv2a_reg_log_read(int block, hwaddr addr, unsigned int size, uint64_t val)
     if (block < ARRAY_SIZE(blocktable) && blocktable[block].name) {
         block_name = blocktable[block].name;
     }
+#ifdef CONFIG_SWITCH
+    {
+        static unsigned nv2a_mmio_read_log_count;
+        bool display_block =
+            block == NV_PCRTC || block == NV_PRMCIO || block == NV_PRMVIO ||
+            block == NV_PRAMDAC || block == NV_PVIDEO || block == NV_PFB;
+        bool core_block =
+            block == NV_PMC || block == NV_PBUS || block == NV_PFIFO ||
+            block == NV_PTIMER || block == NV_PGRAPH;
+
+        bool log_this = false;
+        if (display_block) {
+            log_this = (nv2a_mmio_read_log_count < 2000) ||
+                       ((nv2a_mmio_read_log_count % 200) == 0);
+        } else if (core_block) {
+            log_this = (nv2a_mmio_read_log_count < 400) ||
+                       ((nv2a_mmio_read_log_count % 2000) == 0);
+        }
+
+        if (log_this) {
+            hwaddr base = (block < ARRAY_SIZE(blocktable)) ?
+                blocktable[block].offset : 0;
+            fprintf(stderr,
+                    "Switch: nv2a mmio read  block=%s off=0x%06" HWADDR_PRIx
+                    " abs=0x%06" HWADDR_PRIx " val=0x%08" PRIx64 " size=%u\n",
+                    block_name, addr, base + addr, val, size);
+        }
+        nv2a_mmio_read_log_count++;
+    }
+#endif
     trace_nv2a_reg_read(block_name, addr, size, val);
 }
 
@@ -178,6 +229,56 @@ void nv2a_reg_log_write(int block, hwaddr addr, unsigned int size, uint64_t val)
     if (block < ARRAY_SIZE(blocktable) && blocktable[block].name) {
         block_name = blocktable[block].name;
     }
+#ifdef CONFIG_SWITCH
+    {
+        static unsigned nv2a_mmio_write_log_count;
+        bool pfifo_block = (block == NV_PFIFO);
+        bool pgraph_block = (block == NV_PGRAPH);
+        bool pcrtc_block = (block == NV_PCRTC);
+        bool display_block =
+            block == NV_PCRTC || block == NV_PRMCIO || block == NV_PRMVIO ||
+            block == NV_PRAMDAC || block == NV_PVIDEO || block == NV_PFB;
+        bool core_block =
+            block == NV_PMC || block == NV_PBUS || block == NV_PFIFO ||
+            block == NV_PTIMER || block == NV_PGRAPH;
+
+        if (pfifo_block || pgraph_block || pcrtc_block) {
+            CPUState *cpu = current_cpu;
+            vaddr pc = 0;
+            bool post_kernel = false;
+
+            if (!cpu) {
+                cpu = qemu_get_cpu(0);
+            }
+            if (cpu && cpu->cc && cpu->cc->get_pc) {
+                pc = cpu->cc->get_pc(cpu);
+                post_kernel = (pc >= 0x80000000ull);
+            }
+
+            switch_debug_note_nv2a_block_write(
+                pfifo_block, pgraph_block, pcrtc_block, post_kernel, pc);
+        }
+
+        bool log_this = false;
+        if (display_block) {
+            log_this = (nv2a_mmio_write_log_count < 2000) ||
+                       ((nv2a_mmio_write_log_count % 200) == 0);
+        } else if (core_block) {
+            log_this = (nv2a_mmio_write_log_count < 400) ||
+                       ((nv2a_mmio_write_log_count % 2000) == 0);
+        }
+
+        if (log_this) {
+            hwaddr base = (block < ARRAY_SIZE(blocktable)) ?
+                blocktable[block].offset : 0;
+            fprintf(stderr,
+                    "Switch: nv2a mmio write block=%s off=0x%06" HWADDR_PRIx
+                    " abs=0x%06" HWADDR_PRIx " val=0x%08" PRIx64 " size=%u\n",
+                    block_name, addr, base + addr, val, size);
+        }
+        nv2a_mmio_write_log_count++;
+    }
+#endif
     trace_nv2a_reg_write(block_name, addr, size, val);
 }
 

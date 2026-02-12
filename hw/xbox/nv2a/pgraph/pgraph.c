@@ -671,6 +671,34 @@ int pgraph_method(NV2AState *d, unsigned int subchannel,
 
     pgraph_method_log(subchannel, graphics_class, method, parameter);
 
+#ifdef CONFIG_SWITCH
+    if (graphics_class == NV_KELVIN_PRIMITIVE) {
+        static unsigned method_surface_log_count;
+
+        switch (method) {
+        case NV097_SET_CONTEXT_DMA_COLOR:
+        case NV097_SET_CONTEXT_DMA_ZETA:
+        case NV097_SET_SURFACE_FORMAT:
+        case NV097_SET_SURFACE_PITCH:
+        case NV097_SET_SURFACE_COLOR_OFFSET:
+        case NV097_SET_SURFACE_ZETA_OFFSET:
+        case NV097_CLEAR_SURFACE:
+        case NV097_SET_BEGIN_END:
+            if (method_surface_log_count < 40 ||
+                (method_surface_log_count % 240) == 0) {
+                fprintf(stderr,
+                        "Switch: nv2a kelvin method=0x%04x param=0x%08x subch=%u inc=%d words=%zu\n",
+                        method, parameter, subchannel, inc ? 1 : 0,
+                        num_words_available);
+            }
+            method_surface_log_count++;
+            break;
+        default:
+            break;
+        }
+    }
+#endif
+
     if (subchannel != 0) {
         // catches context switching issues on xbox d3d
         assert(graphics_class != 0x97);

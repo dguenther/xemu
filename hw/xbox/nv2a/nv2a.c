@@ -324,6 +324,13 @@ static void nv2a_reset(NV2AState *d)
     d->pfifo.pending_interrupts = 0;
     d->ptimer.pending_interrupts = 0;
     d->pcrtc.pending_interrupts = 0;
+    d->pbus.probe_data = 0;
+    d->pbus.probe_ctrl0 = 0;
+    d->pbus.probe_ctrl1 = 0;
+    d->pbus.lfsr = 0x4f1bbcdc;
+#ifdef CONFIG_SWITCH
+    memset(d->pbus.shadow_regs, 0, sizeof(d->pbus.shadow_regs));
+#endif
 
     for (int i = 0; i < 256; i++) {
         d->puserdac.palette[i*3]   = i;

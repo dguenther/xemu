@@ -126,6 +126,15 @@ static int smc_write_data(SMBusDevice *dev, uint8_t *buf, uint8_t len)
 
     DPRINTF("smc_write_byte: addr=0x%02x cmd=0x%02x val=0x%02x\n",
            dev->i2c.address, cmd, buf[0]);
+#ifdef CONFIG_SWITCH
+    static unsigned smc_write_log_count;
+    if (smc_write_log_count < 300 || (smc_write_log_count % 2000) == 0) {
+        fprintf(stderr,
+                "Switch: smc write cmd=0x%02x len=%u v0=0x%02x\n",
+                cmd, len, len ? buf[0] : 0);
+    }
+    smc_write_log_count++;
+#endif
 
     switch (cmd) {
     case SMC_REG_VER:
@@ -170,46 +179,63 @@ static uint8_t smc_receive_byte(SMBusDevice *dev)
             dev->i2c.address, smc->cmd);
 
     uint8_t cmd = smc->cmd++;
+    uint8_t ret = 0;
 
     switch (cmd) {
     case SMC_REG_VER:
-        return smc->version_string[
+        ret = smc->version_string[
             smc->version_string_index++ % SMC_VERSION_LENGTH];
+        break;
 
     case SMC_REG_TRAYSTATE:
-        return smc->traystate_reg;
+        ret = smc->traystate_reg;
+        break;
 
     case SMC_REG_SCRATCH:
-        return smc->scratch_reg;
+        ret = smc->scratch_reg;
+        break;
 
     case SMC_REG_AVPACK:
-        return smc->avpack_reg;
+        ret = smc->avpack_reg;
+        break;
 
     case SMC_REG_ERROR_READ:
-        return smc->error_reg;
+        ret = smc->error_reg;
+        break;
 
     case SMC_REG_INTSTATUS: {
-        uint8_t r = smc->intstatus_reg;
+        ret = smc->intstatus_reg;
         smc->intstatus_reg = 0; // FIXME: Confirm clear on read
-        return r;
+        break;
     }
 
     /* challenge request:
      * must be non-0 */
     case 0x1c:
-        return 0x52;
+        ret = 0x52;
+        break;
     case 0x1d:
-        return 0x72;
+        ret = 0x72;
+        break;
     case 0x1e:
-        return 0xea;
+        ret = 0xea;
+        break;
     case 0x1f:
-        return 0x46;
+        ret = 0x46;
+        break;
 
     default:
         break;
     }
 
-    return 0;
+#ifdef CONFIG_SWITCH
+    static unsigned smc_read_log_count;
+    if (smc_read_log_count < 300 || (smc_read_log_count % 2000) == 0) {
+        fprintf(stderr, "Switch: smc read  cmd=0x%02x ret=0x%02x\n", cmd, ret);
+    }
+    smc_read_log_count++;
+#endif
+    return ret;
 }
 
 bool xbox_smc_avpack_to_reg(const char *avpack, uint8_t *value)

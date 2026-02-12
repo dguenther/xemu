@@ -38,6 +38,40 @@ static void pfifo_run_pusher(NV2AState *d);
 static uint32_t ramht_hash(NV2AState *d, uint32_t handle);
 static RAMHTEntry ramht_lookup(NV2AState *d, uint32_t handle);
 
+#ifdef CONFIG_SWITCH
+#ifndef SWITCH_PFIFO_DIAG_WRITE_LIMIT
+#define SWITCH_PFIFO_DIAG_WRITE_LIMIT 4096
+#endif
+
+static const char *pfifo_reg_name(hwaddr addr)
+{
+    switch (addr) {
+    case NV_PFIFO_CACHE1_PUSH0:
+        return "CACHE1_PUSH0";
+    case NV_PFIFO_CACHE1_PUSH1:
+        return "CACHE1_PUSH1";
+    case NV_PFIFO_CACHE1_DMA_PUSH:
+        return "CACHE1_DMA_PUSH";
+    case NV_PFIFO_CACHE1_DMA_GET:
+        return "CACHE1_DMA_GET";
+    case NV_PFIFO_CACHE1_DMA_PUT:
+        return "CACHE1_DMA_PUT";
+    case NV_PFIFO_CACHE1_DMA_STATE:
+        return "CACHE1_DMA_STATE";
+    case NV_PFIFO_CACHE1_DMA_INSTANCE:
+        return "CACHE1_DMA_INSTANCE";
+    case NV_PFIFO_CACHE1_ENGINE:
+        return "CACHE1_ENGINE";
+    case NV_PFIFO_MODE:
+        return "MODE";
+    case NV_PFIFO_RAMHT:
+        return "RAMHT";
+    default:
+        return NULL;
+    }
+}
+#endif
+
 /* PFIFO - MMIO and DMA FIFO submission to PGRAPH and VPE */
 uint64_t pfifo_read(void *opaque, hwaddr addr, unsigned int size)
 {
@@ -70,6 +104,9 @@ uint64_t pfifo_read(void *opaque, hwaddr addr, unsigned int size)
 void pfifo_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
 {
     NV2AState *d = (NV2AState *)opaque;
+#ifdef CONFIG_SWITCH
+    static unsigned pfifo_write_log_count;
+#endif
 
     nv2a_reg_log_write(NV_PFIFO, addr, size, val);
 
@@ -88,6 +125,18 @@ void pfifo_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
         d->pfifo.regs[addr] = val;
         break;
     }
+
+#ifdef CONFIG_SWITCH
+    const char *reg_name = pfifo_reg_name(addr);
+    if (pfifo_write_log_count < SWITCH_PFIFO_DIAG_WRITE_LIMIT) {
+        fprintf(stderr,
+                "Switch: pfifo write %s(0x%04" HWADDR_PRIx ")=0x%08" PRIx64
+                " size=%u idx=%u\n",
+                reg_name ? reg_name : "REG", addr, val, size,
+                pfifo_write_log_count);
+    }
+    pfifo_write_log_count++;
+#endif
 
     pfifo_kick(d);
 
@@ -157,6 +206,20 @@ static ssize_t pfifo_run_puller(NV2AState *d, uint32_t method_entry,
                                 size_t max_lookahead_words)
 {
     if (pfifo_puller_should_stall(d)) {
+#ifdef CONFIG_SWITCH
+        static unsigned puller_stall_log_count;
+        if (puller_stall_log_count < 30 ||
+            (puller_stall_log_count % 240) == 0) {
+            fprintf(stderr,
+                    "Switch: pfifo puller stalled flip=%d nop=%d ctxsw=%d fifo_access=%d words=%zu\n",
+                    qatomic_read(&d->pgraph.waiting_for_flip) ? 1 : 0,
+                    qatomic_read(&d->pgraph.waiting_for_nop) ? 1 : 0,
+                    qatomic_read(&d->pgraph.waiting_for_context_switch) ? 1 : 0,
+                    can_fifo_access(d) ? 1 : 0,
+                    num_words_available);
+        }
+        puller_stall_log_count++;
+#endif
         return -1;
     }
 
@@ -268,6 +331,19 @@ static void pfifo_run_pusher(NV2AState *d)
     if (!GET_MASK(*push0, NV_PFIFO_CACHE1_PUSH0_ACCESS) ||
         !GET_MASK(*dma_push, NV_PFIFO_CACHE1_DMA_PUSH_ACCESS) ||
         GET_MASK(*dma_push, NV_PFIFO_CACHE1_DMA_PUSH_STATUS)) {
+#ifdef CONFIG_SWITCH
+        static unsigned pusher_disabled_log_count;
+        if (pusher_disabled_log_count < 30 ||
+            (pusher_disabled_log_count % 240) == 0) {
+            fprintf(stderr,
+                    "Switch: pfifo pusher idle push_access=%u dma_access=%u dma_status=%u dma_get=0x%08x dma_put=0x%08x\n",
+                    GET_MASK(*push0, NV_PFIFO_CACHE1_PUSH0_ACCESS),
+                    GET_MASK(*dma_push, NV_PFIFO_CACHE1_DMA_PUSH_ACCESS),
+                    GET_MASK(*dma_push, NV_PFIFO_CACHE1_DMA_PUSH_STATUS),
+                    *dma_get, *dma_put);
+        }
+        pusher_disabled_log_count++;
+#endif
         return;
     }
 
@@ -337,6 +413,20 @@ static void pfifo_run_pusher(NV2AState *d)
             SET_MASK(method_entry, NV_PFIFO_CACHE1_METHOD_TYPE, method_type);
             SET_MASK(method_entry, NV_PFIFO_CACHE1_METHOD_SUBCHANNEL,
                      method_subchannel);
+
+#ifdef CONFIG_SWITCH
+            static unsigned puller_dispatch_log_count;
+            if (puller_dispatch_log_count < 60 ||
+                (puller_dispatch_log_count % 240) == 0) {
+                fprintf(stderr,
+                        "Switch: pfifo dispatch method=0x%04x subch=%u type=%s count=%u avail=%zu\n",
+                        method, method_subchannel,
+                        method_type == NV_PFIFO_CACHE1_DMA_STATE_METHOD_TYPE_INC
+                            ? "inc" : "noninc",
+                        method_count, num_words_available);
+            }
+            puller_dispatch_log_count++;
+#endif
 
             *status &= ~NV_PFIFO_CACHE1_STATUS_LOW_MARK;
 
@@ -411,6 +501,17 @@ static void pfifo_run_pusher(NV2AState *d)
                 SET_MASK(*dma_state, NV_PFIFO_CACHE1_DMA_STATE_METHOD_TYPE,
                          NV_PFIFO_CACHE1_DMA_STATE_METHOD_TYPE_INC);
                 *dma_dcount = 0;
+#ifdef CONFIG_SWITCH
+                static unsigned cmd_inc_log_count;
+                if (cmd_inc_log_count < 60 || (cmd_inc_log_count % 240) == 0) {
+                    fprintf(stderr,
+                            "Switch: pfifo cmd INC method=0x%04x subch=%u count=%u\n",
+                            GET_MASK(*dma_state, NV_PFIFO_CACHE1_DMA_STATE_METHOD) << 2,
+                            GET_MASK(*dma_state, NV_PFIFO_CACHE1_DMA_STATE_SUBCHANNEL),
+                            GET_MASK(*dma_state, NV_PFIFO_CACHE1_DMA_STATE_METHOD_COUNT));
+                }
+                cmd_inc_log_count++;
+#endif
             } else if ((word & 0xe0030003) == 0x40000000) {
                 /* non-increasing methods */
                 SET_MASK(*dma_state, NV_PFIFO_CACHE1_DMA_STATE_METHOD,
@@ -422,6 +523,18 @@ static void pfifo_run_pusher(NV2AState *d)
                 SET_MASK(*dma_state, NV_PFIFO_CACHE1_DMA_STATE_METHOD_TYPE,
                          NV_PFIFO_CACHE1_DMA_STATE_METHOD_TYPE_NON_INC);
                 *dma_dcount = 0;
+#ifdef CONFIG_SWITCH
+                static unsigned cmd_noninc_log_count;
+                if (cmd_noninc_log_count < 60 ||
+                    (cmd_noninc_log_count % 240) == 0) {
+                    fprintf(stderr,
+                            "Switch: pfifo cmd NONINC method=0x%04x subch=%u count=%u\n",
+                            GET_MASK(*dma_state, NV_PFIFO_CACHE1_DMA_STATE_METHOD) << 2,
+                            GET_MASK(*dma_state, NV_PFIFO_CACHE1_DMA_STATE_SUBCHANNEL),
+                            GET_MASK(*dma_state, NV_PFIFO_CACHE1_DMA_STATE_METHOD_COUNT));
+                }
+                cmd_noninc_log_count++;
+#endif
             } else {
                 NV2A_DPRINTF("pb reserved cmd 0x%x - 0x%x\n",
                              dma_get_v, word);
@@ -470,6 +583,9 @@ void *pfifo_thread(void *arg)
     rcu_register_thread();
 
     qemu_mutex_lock(&d->pfifo.lock);
+#ifdef CONFIG_SWITCH
+    fprintf(stderr, "Switch: pfifo thread started\n");
+#endif
     while (true) {
         d->pfifo.fifo_kick = false;
 

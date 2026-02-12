@@ -328,17 +328,6 @@ const char *qemu_hw_version(void)
     return "1.0";
 }
 
-void qemu_boot_set(const char *order, Error **errp)
-{
-    (void)order;
-    (void)errp;
-}
-
-void restore_boot_order(void *opaque)
-{
-    (void)opaque;
-}
-
 void register_global_state(void)
 {
 }
@@ -351,65 +340,4 @@ void __attribute__((weak)) qapi_free_BootConfiguration(BootConfiguration *obj)
 void __attribute__((weak)) qapi_free_MemorySizeConfiguration(MemorySizeConfiguration *obj)
 {
     free(obj);
-}
-
-static bool visit_type_MemorySizeConfiguration_members(Visitor *v,
-                                                       MemorySizeConfiguration *obj,
-                                                       Error **errp)
-{
-    if (visit_optional(v, "size", &obj->has_size)) {
-        if (!visit_type_size(v, "size", &obj->size, errp)) {
-            return false;
-        }
-    }
-    if (visit_optional(v, "max-size", &obj->has_max_size)) {
-        if (!visit_type_size(v, "max-size", &obj->max_size, errp)) {
-            return false;
-        }
-    }
-    if (visit_optional(v, "slots", &obj->has_slots)) {
-        if (!visit_type_uint64(v, "slots", &obj->slots, errp)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool __attribute__((weak)) visit_type_MemorySizeConfiguration(Visitor *v, const char *name,
-                                        MemorySizeConfiguration **obj,
-                                        Error **errp)
-{
-    bool ok = false;
-
-    if (!visit_start_struct(v, name, (void **)obj,
-                            sizeof(MemorySizeConfiguration), errp)) {
-        return false;
-    }
-    if (!*obj) {
-        assert(visit_is_dealloc(v));
-        ok = true;
-        goto out_obj;
-    }
-    if (!visit_type_MemorySizeConfiguration_members(v, *obj, errp)) {
-        goto out_obj;
-    }
-    ok = visit_check_struct(v, errp);
-out_obj:
-    visit_end_struct(v, (void **)obj);
-    if (!ok && visit_is_input(v)) {
-        qapi_free_MemorySizeConfiguration(*obj);
-        *obj = NULL;
-    }
-    return ok;
-}
-
-__attribute__((weak)) void qapi_free_SMPConfiguration(SMPConfiguration *obj)
-{
-    (void)obj;
-}
-
-__attribute__((weak)) void qapi_free_SmpCachePropertiesList(
-    SmpCachePropertiesList *obj)
-{
-    (void)obj;
 }

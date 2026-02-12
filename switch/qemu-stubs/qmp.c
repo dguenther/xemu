@@ -7,6 +7,8 @@
 #include "qemu/osdep.h"
 #include "common.h"
 
+extern void vm_start(void);
+
 /*
  * QMP command stubs (block device control)
  */
@@ -36,6 +38,7 @@ void qmp_blockdev_change_medium(const char *device,
 void qmp_cont(Error **errp)
 {
     (void)errp;
+    vm_start();
 }
 
 void qmp_migrate_incoming(const char *uri, bool has_channels,

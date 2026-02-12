@@ -92,6 +92,8 @@ static void tcg_accel_instance_init(Object *obj)
     /* If debugging enabled, default "auto on", otherwise off. */
 #if defined(CONFIG_DEBUG_TCG) && !defined(CONFIG_USER_ONLY)
     s->splitwx_enabled = -1;
+#elif defined(CONFIG_SWITCH)
+    s->splitwx_enabled = 1;
 #else
     s->splitwx_enabled = 0;
 #endif
