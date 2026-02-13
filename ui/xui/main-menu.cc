@@ -28,17 +28,13 @@
 #include "misc.hh"
 #include "gl-helpers.hh"
 #include "reporting.hh"
-#ifndef CONFIG_SWITCH
 #include "qapi/error.h"
-#endif
 #include "actions.hh"
 
 #include "../xemu-input.h"
 #include "../xemu-notifications.h"
 #include "../xemu-settings.h"
-#ifndef CONFIG_SWITCH
 #include "../xemu-monitor.h"
-#endif
 #include "../xemu-version.h"
 #include "../xemu-net.h"
 #include "../xemu-os-utils.h"

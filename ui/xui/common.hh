@@ -41,7 +41,7 @@
 extern "C" {
 #include <noc_file_dialog.h>
 
-// Include QEMU headers (not available on Switch)
+// Include necessary QEMU headers
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "sysemu/sysemu.h"
