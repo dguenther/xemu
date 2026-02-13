@@ -11,7 +11,7 @@ int using_spice = 0;
 
 static void qemu_spice_init_stub(void)
 {
-    switch_log("STUB: qemu_spice_init called\n");
+    switch_log("ALLOWED STUB: qemu_spice_init called REASON: Remote access\n");
 }
 
 static void qemu_spice_display_init_stub(void)

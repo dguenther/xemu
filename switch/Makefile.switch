@@ -229,6 +229,8 @@ UTIL_SRCS := \
     util/qemu-coroutine.c \
     util/qemu-coroutine-lock.c \
     util/qemu-coroutine-sleep.c \
+    util/qemu-co-timeout.c \
+    util/qemu-co-shared-resource.c \
     util/qht.c \
     util/qdist.c \
     util/qsp.c \
@@ -257,8 +259,11 @@ UTIL_SRCS := \
     util/hbitmap.c \
     util/sha1.c \
     util/rc4.c \
+    util/readline.c \
+    util/nvdimm-utils.c \
     page-target.c \
-    job.c
+    job.c \
+    iothread.c
 
 # Character device backends
 # Minimal set for Xbox emulation (serial devices use "null" backend)
@@ -297,41 +302,92 @@ QOM_SRCS := \
 QAPI_SRCS := \
     build/qapi/qapi-builtin-visit.c \
     build/qapi/qapi-builtin-types.c \
+    build/qapi/qapi-init-commands.c \
+    build/qapi/qapi-commands-acpi.c \
+    build/qapi/qapi-commands-audio.c \
     build/qapi/qapi-commands-block.c \
+    build/qapi/qapi-commands-block-core.c \
+    build/qapi/qapi-commands-block-export.c \
+    build/qapi/qapi-commands-char.c \
+    build/qapi/qapi-commands-control.c \
+    build/qapi/qapi-commands-cryptodev.c \
+    build/qapi/qapi-commands-cxl.c \
+    build/qapi/qapi-commands-machine.c \
+    build/qapi/qapi-commands-machine-target.c \
+    build/qapi/qapi-commands-misc.c \
+    build/qapi/qapi-commands-misc-target.c \
+    build/qapi/qapi-commands-stats.c \
+    build/qapi/qapi-commands-qom.c \
+    build/qapi/qapi-commands-virtio.c \
+    build/qapi/qapi-commands-yank.c \
+    build/qapi/qapi-commands-qdev.c \
+    build/qapi/qapi-commands-migration.c \
+    build/qapi/qapi-commands-pci.c \
+    build/qapi/qapi-commands-transaction.c \
+    build/qapi/qapi-commands-ui.c \
+    build/qapi/qapi-commands-replay.c \
+    build/qapi/qapi-commands-job.c \
+    build/qapi/qapi-commands-run-state.c \
+    build/qapi/qapi-types-acpi.c \
     build/qapi/qapi-types-common.c \
     build/qapi/qapi-types-crypto.c \
-    build/qapi/qapi-types-block-core.c \
+    build/qapi/qapi-types-cxl.c \
+    build/qapi/qapi-types-misc.c \
+    build/qapi/qapi-types-misc-target.c \
     build/qapi/qapi-types-block.c \
+    build/qapi/qapi-types-block-core.c \
+    build/qapi/qapi-types-block-export.c \
     build/qapi/qapi-types-ui.c \
     build/qapi/qapi-types-audio.c \
     build/qapi/qapi-types-char.c \
     build/qapi/qapi-types-run-state.c \
     build/qapi/qapi-types-sockets.c \
     build/qapi/qapi-types-virtio.c \
-    build/qapi/qapi-types-machine-common.c \
     build/qapi/qapi-types-migration.c \
     build/qapi/qapi-types-machine.c \
+    build/qapi/qapi-types-machine-common.c \
+    build/qapi/qapi-types-machine-target.c \
     build/qapi/qapi-types-qom.c \
     build/qapi/qapi-types-job.c \
     build/qapi/qapi-types-authz.c \
     build/qapi/qapi-types-yank.c \
+    build/qapi/qapi-types-control.c \
+    build/qapi/qapi-types-stats.c \
+    build/qapi/qapi-types-pci.c \
+    build/qapi/qapi-types-transaction.c \
+    build/qapi/qapi-types-error.c \
+    build/qapi/qapi-types-cryptodev.c \
+    build/qapi/qapi-types-replay.c \
+    build/qapi/qapi-visit-acpi.c \
+    build/qapi/qapi-visit-cryptodev.c \
     build/qapi/qapi-visit-ui.c \
+    build/qapi/qapi-visit-char.c \
+    build/qapi/qapi-visit-cxl.c \
     build/qapi/qapi-visit-audio.c \
     build/qapi/qapi-visit-block.c \
     build/qapi/qapi-visit-block-core.c \
+    build/qapi/qapi-visit-block-export.c \
     build/qapi/qapi-visit-common.c \
     build/qapi/qapi-visit-crypto.c \
     build/qapi/qapi-visit-sockets.c \
     build/qapi/qapi-visit-virtio.c \
     build/qapi/qapi-visit-machine.c \
     build/qapi/qapi-visit-machine-common.c \
+    build/qapi/qapi-visit-machine-target.c \
     build/qapi/qapi-visit-run-state.c \
     build/qapi/qapi-visit-misc.c \
+    build/qapi/qapi-visit-misc-target.c \
     build/qapi/qapi-visit-qom.c \
     build/qapi/qapi-visit-migration.c \
     build/qapi/qapi-visit-job.c \
     build/qapi/qapi-visit-authz.c \
     build/qapi/qapi-visit-yank.c \
+    build/qapi/qapi-visit-control.c \
+    build/qapi/qapi-visit-stats.c \
+    build/qapi/qapi-visit-qdev.c \
+    build/qapi/qapi-visit-pci.c \
+    build/qapi/qapi-visit-replay.c \
+    build/qapi/qapi-visit-transaction.c \
     build/qapi/qapi-events-block.c \
     build/qapi/qapi-events-block-core.c \
     build/qapi/qapi-events-misc.c \
@@ -341,6 +397,7 @@ QAPI_SRCS := \
     build/trace/trace-block.c \
     build/trace/trace-util.c \
     build/trace/trace-hw_usb.c \
+    qapi/qmp-dispatch.c \
     qapi/qmp-registry.c \
     qapi/string-input-visitor.c \
     qapi/string-output-visitor.c \
@@ -351,10 +408,12 @@ QAPI_SRCS := \
     qapi/qapi-util.c \
     qapi/qapi-dealloc-visitor.c \
     qapi/qapi-forward-visitor.c \
-    qapi/qapi-clone-visitor.c
+    qapi/qapi-clone-visitor.c \
+    qapi/qapi-type-helpers.c
 
 # QObject sources
 QOBJECT_SRCS := \
+    qobject/qobject.c \
     qobject/qnull.c \
     qobject/qnum.c \
     qobject/qstring.c \
@@ -372,6 +431,7 @@ QOBJECT_SRCS := \
 CRYPTO_SRCS := \
     crypto/init.c \
     crypto/hash.c \
+    crypto/hash-glib.c \
     crypto/hmac.c \
     crypto/aes.c \
     crypto/random-platform.c
@@ -379,12 +439,19 @@ CRYPTO_SRCS := \
 # Block layer sources (minimal for ISO loading)
 BLOCK_SRCS := \
     block.c \
+    blockjob.c \
     block/block-backend.c \
     blockdev.c \
     block/throttle-groups.c \
     block/accounting.c \
     build/block/block-gen.c \
+    block/amend.c \
+    block/backup.c \
+    block/block-copy.c \
+    block/copy-before-write.c \
     block/raw-format.c \
+    block/qapi.c \
+    block/qapi-sysemu.c \
     block/file-posix.c \
     block/qcow2.c \
     block/qcow2-bitmap.c \
@@ -401,17 +468,25 @@ BLOCK_SRCS := \
     block/io.c \
     block/snapshot.c \
     block/progress_meter.c \
-    blockjob.c
+    block/mirror.c \
+    block/stream.c \
+    block/copy-on-read.c \
+    block/reqlist.c \
+    block/monitor/bitmap-qmp-cmds.c
 
 # HW base sources
 HW_BASE_SRCS := \
     hw/display/vga.c \
     hw/block/block.c \
     hw/block/hd-geometry.c \
+    hw/block/pflash_cfi01.c \
     hw/dma/i8257.c \
     hw/char/serial.c \
     hw/core/loader.c \
     hw/core/qdev.c \
+    hw/core/qdev-clock.c \
+    hw/core/qdev-fw.c \
+    hw/core/fw-path-provider.c \
     hw/core/gpio.c \
     hw/core/qdev-properties.c \
     hw/core/qdev-properties-system.c \
@@ -428,18 +503,47 @@ HW_BASE_SRCS := \
     hw/core/irq.c \
     hw/core/sysbus.c \
     hw/core/machine.c \
+    hw/core/machine-smp.c \
+    hw/core/machine-qmp-cmds.c \
     hw/core/vmstate-if.c \
     hw/core/numa.c \
-    hw/acpi/aml-build.c \
-    hw/acpi/core.c \
+    hw/cxl/cxl-events.c \
+    hw/cxl/cxl-host.c \
+    hw/cxl/cxl-component-utils.c \
+    hw/cxl/cxl-device-utils.c \
+    hw/cxl/cxl-mailbox-utils.c \
     hw/acpi/acpi_interface.c \
+    hw/acpi/acpi-qmp-cmds.c \
+    hw/acpi/aml-build.c \
+    hw/acpi/bios-linker-loader.c \
+    hw/acpi/core.c \
+    hw/acpi/cpu.c \
+    hw/acpi/cpu_hotplug.c \
+    hw/acpi/cxl.c \
+    hw/acpi/erst.c \
+    hw/acpi/hmat.c \
+    hw/acpi/memory_hotplug.c \
+    hw/acpi/pci.c \
+    hw/acpi/nvdimm.c \
+    hw/acpi/utils.c \
+    hw/acpi/viot.c \
+    hw/acpi/vmgenid.c \
     hw/i2c/core.c \
     hw/i2c/smbus_slave.c \
     hw/i2c/smbus_master.c \
+    hw/i386/acpi-build.c \
+    hw/i386/acpi-common.c \
+    hw/i386/amd_iommu-stub.c \
+    hw/i386/e820_memory_layout.c \
+    hw/i386/fw_cfg.c \
+    hw/i386/monitor.c \
     hw/i386/pc.c \
+    hw/i386/pc_sysfw.c \
+    hw/i386/sgx.c \
     hw/i386/x86.c \
     hw/i386/x86-common.c \
     hw/i386/x86-cpu.c \
+    hw/i386/x86-iommu.c \
     hw/i386/vapic.c \
     hw/intc/apic.c \
     hw/intc/apic_common.c \
@@ -465,13 +569,27 @@ HW_BASE_SRCS := \
     hw/ide/ide-bus.c \
     hw/ide/ide-dev.c \
     hw/ide/ioport.c \
-    hw/misc/pci-testdev.c
+    hw/misc/pci-testdev.c \
+    hw/nvram/fw_cfg.c \
+    hw/mem/cxl_type3.c \
+    hw/mem/memory-device.c \
+    hw/virtio/virtio.c \
+    hw/virtio/virtio-qmp.c
 
 # PCI core sources
 PCI_SRCS := \
+    hw/pci/msi.c \
+    hw/pci/msix.c \
     hw/pci/pci.c \
+    hw/pci/pci-hmp-cmds.c \
+    hw/pci/pci-qmp-cmds.c \
     hw/pci/pci_host.c \
-    hw/pci/pci_bridge.c
+    hw/pci/pci_bridge.c \
+    hw/pci-bridge/pci_expander_bridge.c \
+    hw/pci/pcie.c \
+    hw/pci/pcie_aer.c \
+    hw/pci/pcie_sriov.c \
+    hw/pci/pcie_port.c
 
 # Semihosting stubs
 SEMI_SRCS := \
@@ -479,6 +597,7 @@ SEMI_SRCS := \
 
 # USB subsystem sources (for Xbox OHCI controllers)
 USB_SRCS := \
+    hw/usb/dev-hub.c \
     hw/usb/bus.c \
     hw/usb/combined-packet.c \
     hw/usb/core.c \
@@ -601,8 +720,10 @@ UI_SRCS := \
     ui/xui/menubar.cc \
     ui/input.c \
     ui/input-keymap.c \
+    ui/input-legacy.c \
     ui/kbd-state.c \
-    ui/keymaps.c
+    ui/keymaps.c \
+    ui/ui-qmp-cmds.c
 
 # Additional UI sources for full QEMU core build
 UI_SRCS_FULL := \
@@ -636,6 +757,7 @@ TCG_SRCS := \
     accel/tcg/tcg-runtime.c \
     accel/tcg/tcg-runtime-gvec.c \
     accel/tcg/tb-maint.c \
+    accel/tcg/monitor.c \
     tcg/tcg.c \
     tcg/tcg-op.c \
     tcg/tcg-op-vec.c \
@@ -649,6 +771,7 @@ TCG_SRCS := \
 
 # system sources
 SYSTEM_SRCS := \
+    system/balloon.c \
     system/bootdevice.c \
     system/memory.c \
     system/physmem.c \
@@ -671,6 +794,7 @@ SYSTEM_SRCS := \
 
 # i386 target sources
 TARGET_I386_SRCS := \
+    target/i386/machine.c \
     target/i386/cpu.c \
     target/i386/cpu-sysemu.c \
     target/i386/cpu-apic.c \
@@ -720,7 +844,9 @@ MIGRATION_SRCS := \
     migration/channel.c \
     migration/yank_functions.c \
     migration/global_state.c \
-    migration/fd.c
+    migration/fd.c \
+    migration/threadinfo.c \
+    migration/dirtyrate.c
 
 REPLAY_SRCS := \
     replay/replay.c \
@@ -737,6 +863,22 @@ IO_SRCS := \
     io/channel-watch.c \
     io/channel-util.c \
     io/task.c
+
+MONITOR_SRCS := \
+    monitor/monitor.c \
+    monitor/fds.c \
+    monitor/qemu-config-qmp.c \
+    monitor/qmp.c \
+    monitor/qmp-cmds.c \
+    monitor/qmp-cmds-control.c \
+    monitor/hmp-cmds-target.c
+
+BACKEND_SRCS := \
+    backends/hostmem.c \
+    backends/hostmem-ram.c
+
+STATS_SRCS := \
+    stats/stats-qmp-cmds.c
 
 TRACE_SRCS := \
     trace/control.c
@@ -769,6 +911,9 @@ ALL_SRCS := \
     $(MIGRATION_SRCS) \
     $(REPLAY_SRCS) \
     $(IO_SRCS) \
+    $(MONITOR_SRCS) \
+    $(BACKEND_SRCS) \
+    $(STATS_SRCS) \
     $(TRACE_SRCS) \
     $(SYSTEM_SRCS)
 

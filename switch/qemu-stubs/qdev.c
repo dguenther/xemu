@@ -93,19 +93,6 @@ __attribute__((weak)) void qdev_connect_gpio_out_named(DeviceState *dev,
     (void)pin;
 }
 
-void qdev_finalize_clocklist(DeviceState *dev)
-{
-    switch_log("STUB: qdev_finalize_clocklist called\n");
-    (void)dev;
-}
-
-const char *qdev_fw_name(DeviceState *dev)
-{
-    switch_log("STUB: qdev_fw_name called\n");
-    (void)dev;
-    return NULL;
-}
-
 /*
  * QemuOpts definitions for system/vl.c and other QEMU components.
  * These are normally provided by various source files (qdev-monitor.c,
@@ -149,11 +136,3 @@ QemuOptsList qemu_net_opts = {
     },
 };
 
-QemuOptsList qemu_mon_opts = {
-    .name = "mon",
-    .implied_opt_name = "chardev",
-    .head = QTAILQ_HEAD_INITIALIZER(qemu_mon_opts.head),
-    .desc = {
-        { /* end of list */ }
-    },
-};

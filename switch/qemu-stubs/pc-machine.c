@@ -15,13 +15,6 @@ typedef enum OnOffAuto OnOffAuto;
 typedef enum FloppyDriveType FloppyDriveType;
 typedef struct BusState BusState;
 
-unsigned int machine_topo_get_cores_per_socket(void *ms)
-{
-    switch_log("STUB: machine_topo_get_cores_per_socket called\n");
-    (void)ms;
-    return 1;
-}
-
 __attribute__((weak)) void cpu_set_ignne(void)
 {
     switch_log("STUB: cpu_set_ignne called\n");
@@ -69,12 +62,6 @@ __attribute__((weak)) void visit_type_SmbiosEntryPointType(
     (void)name;
     (void)obj;
     (void)errp;
-}
-
-__attribute__((weak)) void pc_system_flash_create(PCMachineState *pcms)
-{
-    switch_log("STUB: pc_system_flash_create called\n");
-    (void)pcms;
 }
 
 __attribute__((weak)) void cxl_machine_init(Object *obj, CXLState *state)
@@ -331,20 +318,20 @@ __attribute__((weak)) void virtio_md_pci_unplug(VirtIOMDPCI *vmd,
     (void)errp;
 }
 
-void fw_cfg_set_order_override(FWCfgState *fw_cfg, int order)
+__attribute__((weak)) void fw_cfg_set_order_override(FWCfgState *fw_cfg, int order)
 {
     switch_log("STUB: fw_cfg_set_order_override called\n");
     (void)fw_cfg;
     (void)order;
 }
 
-void fw_cfg_reset_order_override(FWCfgState *fw_cfg)
+__attribute__((weak)) void fw_cfg_reset_order_override(FWCfgState *fw_cfg)
 {
     switch_log("STUB: fw_cfg_reset_order_override called\n");
     (void)fw_cfg;
 }
 
-bool fw_cfg_add_from_generator(FWCfgState *s, const char *filename,
+__attribute__((weak)) bool fw_cfg_add_from_generator(FWCfgState *s, const char *filename,
                                const char *gen_id, Error **errp)
 {
     switch_log("STUB: fw_cfg_add_from_generator called\n");
@@ -381,4 +368,14 @@ void __attribute__((weak)) qapi_free_MemorySizeConfiguration(MemorySizeConfigura
 {
     switch_log("STUB: qapi_free_MemorySizeConfiguration called\n");
     free(obj);
+}
+
+void __attribute__((weak)) hyperv_synic_post_load(MemorySizeConfiguration *obj)
+{
+    switch_log("STUB: hyperv_synic_post_load called\n");
+}
+
+void __attribute__((weak)) hyperv_x86_synic_update(MemorySizeConfiguration *obj)
+{
+    switch_log("STUB: hyperv_x86_synic_update called\n");
 }

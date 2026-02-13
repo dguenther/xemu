@@ -83,3 +83,8 @@ void replay_event_net_load(void *opaque)
 {
     switch_log("STUB: replay_event_net_load called\n");
 }
+
+void qmp_query_replay(void *opaque)
+{
+    switch_log("STUB: qmp_query_replay called\n");
+}

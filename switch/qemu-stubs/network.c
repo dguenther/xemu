@@ -103,7 +103,7 @@ void qemu_del_nic(NICState *nic)
 
 NetClientState *qemu_get_queue(NICState *nic)
 {
-    switch_log("STUB: qemu_get_queue called\n");
+    switch_log("ALLOWED STUB: qemu_get_queue called REASON: network\n");
     return nic ? nic->ncs : NULL;
 }
 
@@ -162,4 +162,19 @@ void fd_is_socket()
 void qio_channel_socket_new_fd()
 {
     switch_log("STUB: qio_channel_socket_new_fd called\n");
+}
+
+void socket_cleanup_outgoing_migration()
+{
+    switch_log("STUB: socket_cleanup_outgoing_migration called\n");
+}
+
+void socket_send_channel_create()
+{
+    switch_log("STUB: socket_send_channel_create called\n");
+}
+
+void qio_channel_tls_handshake()
+{
+    switch_log("STUB: qio_channel_tls_handshake called\n");
 }

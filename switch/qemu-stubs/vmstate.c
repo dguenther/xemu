@@ -44,9 +44,3 @@ static int vmstate_stub_put(QEMUFile *f, void *pv, size_t size,
     (void)vmdesc;
     return 0;
 }
-
-__attribute__((weak)) const VMStateDescription vmstate_pci_device = { 0 };
-__attribute__((weak)) const VMStateDescription vmstate_serial = { 0 };
-__attribute__((weak)) const VMStateDescription vmstate_vga_common = { 0 };
-__attribute__((weak)) const VMStateDescription vmstate_x86_cpu = { 0 };
-

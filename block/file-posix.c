@@ -42,6 +42,10 @@
 #include "scsi/pr-manager.h"
 #include "scsi/constants.h"
 
+#ifdef CONFIG_SWITCH
+#include <sys/ioctl.h>
+#endif
+
 #if defined(__APPLE__) && (__MACH__)
 #include <sys/ioctl.h>
 #if defined(HAVE_HOST_BLOCK_DEVICE)

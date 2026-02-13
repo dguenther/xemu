@@ -38,7 +38,7 @@ podman build -t localhost/devkita64-glib:latest -f switch/Dockerfile switch
 
 # Run build in container (from xemu root directory)
 podman run --rm -v "$(pwd):/xemu:Z" -w /xemu localhost/devkita64-glib:latest \
-    make -f switch/Makefile.switch
+    make -j8 -f switch/Makefile.switch
 
 # Or build the Switch abstraction layer files only:
 podman run --rm -v "$(pwd):/xemu:Z" -w /xemu localhost/devkita64-glib:latest bash -c '

@@ -120,10 +120,6 @@ typedef struct MemoryRegionOps {
     uint64_t _dummy[8];
 } MemoryRegionOps;
 
-typedef struct VMStateDescription {
-    uint64_t _dummy[8];
-} VMStateDescription;
-
 typedef int ICountMode;
 
 /* Macro for stubbing integer-returning functions */

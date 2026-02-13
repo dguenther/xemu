@@ -41,18 +41,6 @@ bool switch_is_main_thread(void)
            pthread_equal(pthread_self(), switch_main_thread);
 }
 
-void error_vprintf(const char *fmt, va_list ap)
-{
-    char buf[1024];
-    va_list ap_copy;
-
-    va_copy(ap_copy, ap);
-    vsnprintf(buf, sizeof(buf), fmt, ap_copy);
-    va_end(ap_copy);
-
-    switch_log("%s", buf);
-}
-
 __attribute__((noreturn)) void exit(int status)
 {
     void *ret = __builtin_return_address(0);
