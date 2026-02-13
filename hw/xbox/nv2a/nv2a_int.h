@@ -99,13 +99,6 @@ typedef struct NV2AState {
         uint32_t probe_ctrl0;
         uint32_t probe_ctrl1;
         uint32_t lfsr;
-#ifdef CONFIG_SWITCH
-        /*
-         * Switch-only shadow for undocumented PBUS registers touched by the
-         * MCPX boot path (0x200..0x2ff, dword aligned).
-         */
-        uint32_t shadow_regs[0x100 / sizeof(uint32_t)];
-#endif
     } pbus;
 
     struct {
