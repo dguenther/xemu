@@ -2803,26 +2803,7 @@ void qmp_x_exit_preconfig(Error **errp)
             }
         }
     } else if (autostart) {
-#ifdef CONFIG_SWITCH
-        Error *cont_err = NULL;
-        fprintf(stderr, "Switch: qmp_x_exit_preconfig autostart=1, calling qmp_cont\n");
-        qmp_cont(&cont_err);
-        if (cont_err) {
-            fprintf(stderr, "Switch: qmp_cont failed: %s\n",
-                    error_get_pretty(cont_err));
-            error_free(cont_err);
-        } else {
-            fprintf(stderr, "Switch: qmp_cont succeeded, runstate=%s running=%d\n",
-                    RunState_str(runstate_get()), runstate_is_running() ? 1 : 0);
-        }
-#else
         qmp_cont(NULL);
-#endif
-#ifdef CONFIG_SWITCH
-    } else {
-        fprintf(stderr, "Switch: qmp_x_exit_preconfig autostart=0 incoming=%s\n",
-                incoming ? incoming : "(null)");
-#endif
     }
 }
 
