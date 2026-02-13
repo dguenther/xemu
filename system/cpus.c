@@ -544,6 +544,21 @@ void bql_unlock(void)
     qemu_mutex_unlock(&bql);
 }
 
+#ifdef CONFIG_SWITCH
+bool bql_trylock(void)
+{
+    if (bql_locked()) {
+        return true; /* already held by this thread */
+    }
+    int ret = qemu_mutex_trylock__raw(&bql);
+    if (ret == 0) {
+        set_bql_locked(true);
+        return true;
+    }
+    return false;
+}
+#endif
+
 void qemu_cond_wait_bql(QemuCond *cond)
 {
     qemu_cond_wait(cond, &bql);

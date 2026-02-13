@@ -1255,6 +1255,7 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
             fprintf(stderr, "Switch: GL owner busy, skipping frame\n");
             gl_owner_skip_log_count++;
         }
+        nv2a_release_framebuffer_surface();
         return;
     }
     if (!scon->surface) {
@@ -1291,6 +1292,7 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
 #endif
 #endif
 #ifdef CONFIG_SWITCH
+            nv2a_release_framebuffer_surface();
             SDL_GL_MakeCurrent(NULL, NULL);
             switch_gl_owner_unlock("sdl2_gl_refresh");
 #endif
@@ -1353,8 +1355,29 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
      * lock and perform rendering, but release before swap to avoid
      * possible lengthy blocking (for vsync).
      */
+#ifdef CONFIG_SWITCH
+    /*
+     * On Switch, use trylock for BQL to avoid starving the vCPU thread.
+     * The vCPU's cpu_handle_interrupt() acquires BQL on every TB exit
+     * when interrupt_request is non-zero, so blocking here can severely
+     * degrade emulation throughput.  If we can't get BQL, just skip this
+     * frame's HUD render - it will be picked up next time.
+     */
+    if (!bql_trylock()) {
+        static int bql_skip_count;
+        if (bql_skip_count < 5) {
+            fprintf(stderr, "Switch: BQL busy, skipping HUD render\n");
+            bql_skip_count++;
+        }
+        nv2a_release_framebuffer_surface();
+        SDL_GL_MakeCurrent(NULL, NULL);
+        switch_gl_owner_unlock("sdl2_gl_refresh");
+        return;
+    }
+#else
     qemu_mutex_lock_main_loop();
     bql_lock();
+#endif
 #ifndef CONFIG_SWITCH
     sdl2_poll_events(scon);
 #endif
@@ -1367,7 +1390,9 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
 
     // Release BQL before swapping (which may sleep if swap interval is not immediate)
     bql_unlock();
+#ifndef CONFIG_SWITCH
     qemu_mutex_unlock_main_loop();
+#endif
 
     glFinish();
     nv2a_release_framebuffer_surface();

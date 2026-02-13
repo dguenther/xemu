@@ -5,6 +5,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
+#include "qemu/timer.h"
 #include "hw/core/cpu.h"
 #include "exec/cpu-common.h"
 #if defined(TARGET_I386)
@@ -16,6 +17,19 @@
 #endif
 
 extern void switch_log(const char *format, ...);
+
+/*
+ * TB (Translation Block) execution counter for measuring IPS.
+ * Incremented from cpu-exec.c on each TB execution.
+ */
+static uint64_t g_switch_tb_exec_count;
+static uint64_t g_switch_tb_insn_count;
+
+void switch_debug_note_tb_executed(int insn_count)
+{
+    qatomic_inc(&g_switch_tb_exec_count);
+    qatomic_add(&g_switch_tb_insn_count, insn_count);
+}
 
 typedef struct SwitchNV2ABlockProbeCounters {
     uint64_t pfifo_total;
@@ -356,6 +370,26 @@ void switch_debug_log_cpu0_state(void)
         uint64_t pcrtc_last_pc = qatomic_read(
             &g_nv2a_block_probe.pcrtc_last_post_kernel_pc);
 
+        /* IPS measurement */
+        static uint64_t prev_tb_count;
+        static uint64_t prev_insn_count;
+        static int64_t prev_time_ns;
+        uint64_t cur_tb_count = qatomic_read(&g_switch_tb_exec_count);
+        uint64_t cur_insn_count = qatomic_read(&g_switch_tb_insn_count);
+        int64_t cur_time_ns = get_clock();
+        uint64_t delta_insns = cur_insn_count - prev_insn_count;
+        uint64_t delta_tbs = cur_tb_count - prev_tb_count;
+        int64_t delta_ns = cur_time_ns - prev_time_ns;
+        uint64_t ips = 0;
+        uint64_t tbps = 0;
+        if (delta_ns > 0) {
+            ips = (delta_insns * 1000000000ULL) / (uint64_t)delta_ns;
+            tbps = (delta_tbs * 1000000000ULL) / (uint64_t)delta_ns;
+        }
+        prev_tb_count = cur_tb_count;
+        prev_insn_count = cur_insn_count;
+        prev_time_ns = cur_time_ns;
+
         switch_log(
             "Switch: cpu0 pc=0x%" VADDR_PRIx " region=%s halted=%d stopped=%d int_req=0x%x stagnant=%u\n",
             pc,
@@ -373,6 +407,10 @@ void switch_debug_log_cpu0_state(void)
             pfifo_post, pfifo_last_pc,
             pgraph_post, pgraph_last_pc,
             pcrtc_post, pcrtc_last_pc);
+        switch_log(
+            "Switch: perf tbs=%" PRIu64 " insns=%" PRIu64
+            " ips=%" PRIu64 " tbps=%" PRIu64 "\n",
+            cur_tb_count, cur_insn_count, ips, tbps);
     }
 
 #if defined(TARGET_I386)

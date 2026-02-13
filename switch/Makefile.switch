@@ -1011,6 +1011,7 @@ $(BUILD)/config-target.h: $(TOPDIR)/switch/config-switch.h $(TOPDIR)/switch/Make
 	@echo "#define TARGET_PHYS_ADDR_SPACE_BITS 36" >> $@
 	@echo "#define TARGET_VIRT_ADDR_SPACE_BITS 32" >> $@
 	@echo "#define TARGET_BIG_ENDIAN 0" >> $@
+	@echo "#define TARGET_SUPPORTS_MTTCG 1" >> $@
 	@echo "#define CONFIG_SOFTMMU 1" >> $@
 	@echo "#include \"$(TOPDIR)/switch/config-switch.h\"" >> $@
 	@echo "#endif" >> $@

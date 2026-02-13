@@ -342,6 +342,14 @@ void bql_lock_impl(const char *file, int line);
  */
 void bql_unlock(void);
 
+#ifdef CONFIG_SWITCH
+/**
+ * bql_trylock: Try to lock the BQL without blocking.
+ * Returns true if the lock was acquired (or already held), false if busy.
+ */
+bool bql_trylock(void);
+#endif
+
 /**
  * BQL_LOCK_GUARD
  *
