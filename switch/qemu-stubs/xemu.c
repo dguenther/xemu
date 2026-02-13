@@ -50,12 +50,6 @@ void xemu_snapshots_load(const char *name, void *err)
 }
 
 char *xemu_get_currently_loaded_disc_path(void) { switch_log("STUB: xemu_get_currently_loaded_disc_path called\n"); return NULL; }
-void xemu_snapshots_set_framebuffer_texture(unsigned int tex, bool flip)
-{
-    switch_log("STUB: xemu_snapshots_set_framebuffer_texture called\n");
-    (void)tex;
-    (void)flip;
-}
 
 /*
  * Controller list stub

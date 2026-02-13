@@ -26,18 +26,6 @@ void replay_audio_out(size_t *played)
     (void)played;
 }
 
-int replay_running_debug(void)
-{
-    switch_log("STUB: replay_running_debug called\n");
-    return 0;
-}
-
-int replay_breakpoint(void)
-{
-    switch_log("STUB: replay_breakpoint called\n");
-    return 0;
-}
-
 void replay_save_clock(int clock_id, int64_t value, int64_t raw_icount)
 {
     switch_log("STUB: replay_save_clock called\n");
@@ -82,9 +70,4 @@ void replay_event_net_save(void *opaque)
 void replay_event_net_load(void *opaque)
 {
     switch_log("STUB: replay_event_net_load called\n");
-}
-
-void qmp_query_replay(void *opaque)
-{
-    switch_log("STUB: qmp_query_replay called\n");
 }

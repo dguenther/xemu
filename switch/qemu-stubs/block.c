@@ -189,3 +189,57 @@ void __attribute__((weak)) timed_average_init(void *ta, void *clock_type, uint64
     switch_log("STUB: timed_average_init called\n");
     (void)ta; (void)clock_type; (void)period;
 }
+
+void qmp_nbd_server_start(void *addr, const char *tls_creds,
+                          const char *tls_authz,
+                          bool has_max_connections, uint32_t max_connections,
+                          Error **errp)
+{
+    (void)addr;
+    (void)tls_creds;
+    (void)tls_authz;
+    (void)has_max_connections;
+    (void)max_connections;
+    (void)errp;
+}
+
+void qmp_nbd_server_add(void *arg, Error **errp)
+{
+    (void)arg;
+    (void)errp;
+}
+
+void qmp_nbd_server_remove(const char *name, bool has_mode, int mode,
+                           Error **errp)
+{
+    (void)name;
+    (void)has_mode;
+    (void)mode;
+    (void)errp;
+}
+
+void qmp_nbd_server_stop(Error **errp)
+{
+    (void)errp;
+}
+
+void qmp_block_export_add(void *export, Error **errp)
+{
+    (void)export;
+    (void)errp;
+}
+
+void qmp_block_export_del(const char *id, bool has_mode, int mode,
+                          Error **errp)
+{
+    (void)id;
+    (void)has_mode;
+    (void)mode;
+    (void)errp;
+}
+
+void *qmp_query_block_exports(Error **errp)
+{
+    (void)errp;
+    return NULL;
+}

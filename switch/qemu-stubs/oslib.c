@@ -172,7 +172,7 @@ void *qemu_memalign(size_t alignment, size_t size)
 
 void os_setup_limits(void)
 {
-    switch_log("STUB: os_setup_limits called\n");
+    switch_log("ALLOWED STUB: os_setup_limits called REASON: os-specific, does nothing on win32\n");
 }
 
 void os_set_proc_name(const char *s)

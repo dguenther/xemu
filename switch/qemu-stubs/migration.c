@@ -5,6 +5,9 @@
  */
 
 #include "common.h"
+#include "migration/socket.h"
+#include "migration/exec.h"
+#include "migration/migration.h"
 
 bool migration_in_colo_state(void)
 {
@@ -38,14 +41,21 @@ void migration_tls_channel_process_incoming(void)
     switch_log("STUB: migration_tls_channel_process_incoming called\n");
 }
 
-void exec_start_incoming_migration(void)
+void exec_start_incoming_migration(strList *host_port, Error **errp)
 {
     switch_log("STUB: exec_start_incoming_migration called\n");
+    (void)host_port;
+    (void)errp;
 }
 
 void migration_reset_vfio_bytes_transferred(void)
 {
     switch_log("STUB: migration_reset_vfio_bytes_transferred called\n");
+}
+
+void migration_populate_vfio_info(MigrationInfo *info)
+{
+    (void)info;
 }
 
 void migration_tls_client_create(void)
@@ -56,4 +66,25 @@ void migration_tls_client_create(void)
 void migration_tls_channel_connect(void)
 {
     switch_log("STUB: migration_tls_channel_connect called\n");
+}
+
+void socket_start_outgoing_migration(MigrationState *s,
+                                     SocketAddress *saddr, Error **errp)
+{
+    (void)s;
+    (void)saddr;
+    (void)errp;
+}
+
+void exec_start_outgoing_migration(MigrationState *s, strList *host_port,
+                                   Error **errp)
+{
+    (void)s;
+    (void)host_port;
+    (void)errp;
+}
+
+void migrate_start_colo_process(MigrationState *s)
+{
+    (void)s;
 }

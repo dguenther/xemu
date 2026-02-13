@@ -6,9 +6,20 @@
 
 #include "common.h"
 
-void kvm_dirty_ring_enabled(void)
+bool kvm_dirty_ring_enabled(void)
 {
     switch_log("STUB: kvm_dirty_ring_enabled called\n");
+    return false;
+}
+
+uint32_t kvm_dirty_ring_size(void)
+{
+    return 0;
+}
+
+bool kvm_hwpoisoned_mem(void)
+{
+    return false;
 }
 
 void qmp_query_sev_attestation_report(void)

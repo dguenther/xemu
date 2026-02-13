@@ -198,6 +198,7 @@ SWITCH_SRCS := \
 # Note: util/osdep.c and util/memalign.c are excluded - oslib-switch.c provides Switch versions
 UTIL_SRCS := \
     util/cutils.c \
+    util/base64.c \
     util/unicode.c \
     util/error.c \
     util/error-report.c \
@@ -262,7 +263,9 @@ UTIL_SRCS := \
     util/readline.c \
     util/nvdimm-utils.c \
     page-target.c \
+    page-vary-target.c \
     job.c \
+    job-qmp.c \
     iothread.c
 
 # Character device backends
@@ -330,6 +333,7 @@ QAPI_SRCS := \
     build/qapi/qapi-commands-run-state.c \
     build/qapi/qapi-types-acpi.c \
     build/qapi/qapi-types-common.c \
+    build/qapi/qapi-types-compat.c \
     build/qapi/qapi-types-crypto.c \
     build/qapi/qapi-types-cxl.c \
     build/qapi/qapi-types-misc.c \
@@ -363,6 +367,7 @@ QAPI_SRCS := \
     build/qapi/qapi-visit-ui.c \
     build/qapi/qapi-visit-char.c \
     build/qapi/qapi-visit-cxl.c \
+    build/qapi/qapi-visit-compat.c \
     build/qapi/qapi-visit-audio.c \
     build/qapi/qapi-visit-block.c \
     build/qapi/qapi-visit-block-core.c \
@@ -394,10 +399,12 @@ QAPI_SRCS := \
     build/qapi/qapi-events-run-state.c \
     build/qapi/qapi-events-migration.c \
     build/qapi/qapi-events-job.c \
+    build/qapi/qapi-introspect.c \
     build/trace/trace-block.c \
     build/trace/trace-util.c \
     build/trace/trace-hw_usb.c \
     qapi/qmp-dispatch.c \
+    qapi/qmp-event.c \
     qapi/qmp-registry.c \
     qapi/string-input-visitor.c \
     qapi/string-output-visitor.c \
@@ -425,7 +432,8 @@ QOBJECT_SRCS := \
     qobject/qjson.c \
     qobject/json-lexer.c \
     qobject/json-parser.c \
-    qobject/json-writer.c
+    qobject/json-writer.c \
+    qobject/json-streamer.c
 
 # Crypto sources (minimal)
 CRYPTO_SRCS := \
@@ -446,6 +454,7 @@ BLOCK_SRCS := \
     block/accounting.c \
     build/block/block-gen.c \
     block/amend.c \
+    block/create.c \
     block/backup.c \
     block/block-copy.c \
     block/copy-before-write.c \
@@ -480,6 +489,8 @@ HW_BASE_SRCS := \
     hw/block/block.c \
     hw/block/hd-geometry.c \
     hw/block/pflash_cfi01.c \
+    hw/block/fdc.c \
+    hw/block/fdc-isa.c \
     hw/dma/i8257.c \
     hw/char/serial.c \
     hw/core/loader.c \
@@ -512,6 +523,7 @@ HW_BASE_SRCS := \
     hw/cxl/cxl-component-utils.c \
     hw/cxl/cxl-device-utils.c \
     hw/cxl/cxl-mailbox-utils.c \
+    hw/cxl/cxl-cdat.c \
     hw/acpi/acpi_interface.c \
     hw/acpi/acpi-qmp-cmds.c \
     hw/acpi/aml-build.c \
@@ -545,6 +557,7 @@ HW_BASE_SRCS := \
     hw/i386/x86-cpu.c \
     hw/i386/x86-iommu.c \
     hw/i386/vapic.c \
+    hw/hyperv/hv-balloon-stub.c \
     hw/intc/apic.c \
     hw/intc/apic_common.c \
     hw/intc/kvm_irqcount.c \
@@ -574,7 +587,10 @@ HW_BASE_SRCS := \
     hw/mem/cxl_type3.c \
     hw/mem/memory-device.c \
     hw/virtio/virtio.c \
-    hw/virtio/virtio-qmp.c
+    hw/virtio/virtio-qmp.c \
+    hw/virtio/virtio-bus.c \
+    hw/virtio/vhost-stub.c \
+    hw/watchdog/watchdog.c
 
 # PCI core sources
 PCI_SRCS := \
@@ -587,6 +603,7 @@ PCI_SRCS := \
     hw/pci/pci_bridge.c \
     hw/pci-bridge/pci_expander_bridge.c \
     hw/pci/pcie.c \
+    hw/pci/pcie_doe.c \
     hw/pci/pcie_aer.c \
     hw/pci/pcie_sriov.c \
     hw/pci/pcie_port.c
@@ -698,6 +715,7 @@ FPNG_SRCS := \
 UI_SRCS := \
     ui/xemu-input.c \
     ui/xemu-settings.cc \
+    ui/xemu-thumbnail.cc \
     ui/xemu-widescreen.c \
     ui/xui/main.cc \
     ui/xui/main-menu.cc \
@@ -731,7 +749,8 @@ UI_SRCS_FULL := \
     ui/console.c \
     ui/dmabuf.c \
     ui/qemu-pixman.c \
-    ui/console-vc.c
+    ui/console-vc.c \
+    ui/vnc-stubs.c
 
 # Audio sources (SDL only)
 AUDIO_SRCS := \
@@ -758,6 +777,7 @@ TCG_SRCS := \
     accel/tcg/tcg-runtime-gvec.c \
     accel/tcg/tb-maint.c \
     accel/tcg/monitor.c \
+    accel/tcg/watchpoint.c \
     tcg/tcg.c \
     tcg/tcg-op.c \
     tcg/tcg-op-vec.c \
@@ -796,6 +816,7 @@ SYSTEM_SRCS := \
 TARGET_I386_SRCS := \
     target/i386/machine.c \
     target/i386/cpu.c \
+    target/i386/monitor.c \
     target/i386/cpu-sysemu.c \
     target/i386/cpu-apic.c \
     target/i386/gdbstub.c \
@@ -854,7 +875,8 @@ REPLAY_SRCS := \
     replay/replay-events.c \
     replay/replay-internal.c \
     replay/replay-char.c \
-    replay/replay-input.c
+    replay/replay-input.c \
+    replay/replay-debugging.c
 
 IO_SRCS := \
     io/channel.c \
@@ -875,7 +897,8 @@ MONITOR_SRCS := \
 
 BACKEND_SRCS := \
     backends/hostmem.c \
-    backends/hostmem-ram.c
+    backends/hostmem-ram.c \
+    backends/cryptodev.c
 
 STATS_SRCS := \
     stats/stats-qmp-cmds.c

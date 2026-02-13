@@ -161,13 +161,6 @@ __attribute__((weak)) int ide_get_bios_chs_trans(BusState *bus, int unit)
     return 1;
 }
 
-__attribute__((weak)) int cmos_get_fd_drive_type(FloppyDriveType fd0)
-{
-    switch_log("STUB: cmos_get_fd_drive_type called\n");
-    (void)fd0;
-    return 0;
-}
-
 __attribute__((weak)) bool x86_machine_is_acpi_enabled(const X86MachineState *x86ms)
 {
     switch_log("STUB: x86_machine_is_acpi_enabled called\n");
