@@ -244,11 +244,6 @@ static void init_settings(void)
         switch_log("Using default HDD path: %s\n", g_config.sys.files.hdd_path);
     }
 
-    if (!g_config.sys.files.eeprom_path || !g_config.sys.files.eeprom_path[0]) {
-        xemu_settings_set_string(&g_config.sys.files.eeprom_path,
-                                 "sdmc:/switch/xemu/bios/eeprom.bin");
-        switch_log("Using default EEPROM path: %s\n", g_config.sys.files.eeprom_path);
-    }
 }
 
 static void save_settings(void)
