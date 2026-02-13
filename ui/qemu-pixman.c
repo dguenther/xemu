@@ -277,6 +277,9 @@ qemu_pixman_shareable_alloc(const char *name, size_t size,
 {
 #ifdef WIN32
     return qemu_win32_map_alloc(size, handle, errp);
+#elif defined(CONFIG_SWITCH)
+    *handle = SHAREABLE_NONE;
+    return g_malloc0(size);
 #else
     return qemu_memfd_alloc(name, size, 0, handle, errp);
 #endif
@@ -288,6 +291,8 @@ qemu_pixman_shareable_free(qemu_pixman_shareable handle,
 {
 #ifdef WIN32
     qemu_win32_map_free(ptr, handle, &error_warn);
+#elif defined(CONFIG_SWITCH)
+    g_free(ptr);
 #else
     qemu_memfd_free(ptr, size, handle);
 #endif
@@ -302,15 +307,6 @@ qemu_pixman_shared_image_destroy(pixman_image_t *image, void *data)
 
     qemu_pixman_shareable_free(handle, ptr, size);
 }
-
-#ifdef CONFIG_SWITCH
-static void
-qemu_pixman_shared_image_destroy_malloc(pixman_image_t *image, void *data)
-{
-    (void)image;
-    g_free(data);
-}
-#endif
 
 bool
 qemu_pixman_image_new_shareable(pixman_image_t **image,
@@ -329,27 +325,6 @@ qemu_pixman_image_new_shareable(pixman_image_t **image,
     g_return_val_if_fail(image != NULL, false);
     g_return_val_if_fail(handle != NULL, false);
 
-#ifdef CONFIG_SWITCH
-    (void)name;
-    bits = g_malloc0(size);
-    if (!bits) {
-        error_setg(errp, "Failed to allocate image");
-        return false;
-    }
-
-    *handle = SHAREABLE_NONE;
-    *image = pixman_image_create_bits(format, width, height, bits, rowstride_bytes);
-    if (!*image) {
-        error_setg(errp, "Failed to allocate image");
-        g_free(bits);
-        return false;
-    }
-
-    pixman_image_set_destroy_function(*image,
-                                      qemu_pixman_shared_image_destroy_malloc,
-                                      bits);
-    return true;
-#else
     bits = qemu_pixman_shareable_alloc(name, size, handle, errp);
     if (!bits) {
         return false;
@@ -367,5 +342,4 @@ qemu_pixman_image_new_shareable(pixman_image_t **image,
                                       SHAREABLE_TO_PTR(*handle));
 
     return true;
-#endif
 }
