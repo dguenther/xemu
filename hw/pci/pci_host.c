@@ -28,12 +28,10 @@
 #include "migration/vmstate.h"
 #include "trace.h"
 
-#ifdef CONFIG_SWITCH
 static bool switch_pci_cfg_log_enabled(unsigned *counter)
 {
     return *counter < 400 || ((*counter % 2000) == 0);
 }
-#endif
 
 /* debug PCI */
 //#define DEBUG_PCI
@@ -135,7 +133,6 @@ void pci_data_write(PCIBus *s, uint32_t addr, uint32_t val, unsigned len)
     PCIDevice *pci_dev = pci_dev_find_by_addr(s, addr);
     uint32_t config_addr = addr & (PCI_CONFIG_SPACE_SIZE - 1);
 
-#ifdef CONFIG_SWITCH
     static unsigned cfg_write_log_count;
     if (switch_pci_cfg_log_enabled(&cfg_write_log_count)) {
         fprintf(stderr,
@@ -147,7 +144,6 @@ void pci_data_write(PCIBus *s, uint32_t addr, uint32_t val, unsigned len)
                 pci_dev ? pci_dev->name : "empty");
     }
     cfg_write_log_count++;
-#endif
 
     if (!pci_dev) {
         trace_pci_cfg_write("empty", extract32(addr, 16, 8),
@@ -165,16 +161,13 @@ uint32_t pci_data_read(PCIBus *s, uint32_t addr, unsigned len)
     PCIDevice *pci_dev = pci_dev_find_by_addr(s, addr);
     uint32_t config_addr = addr & (PCI_CONFIG_SPACE_SIZE - 1);
 
-#ifdef CONFIG_SWITCH
     static unsigned cfg_read_log_count;
     uint32_t ret;
-#endif
 
     if (!pci_dev) {
         trace_pci_cfg_read("empty", extract32(addr, 16, 8),
                            extract32(addr, 11, 5), extract32(addr, 8, 3),
                            config_addr, ~0x0);
-#ifdef CONFIG_SWITCH
         if (switch_pci_cfg_log_enabled(&cfg_read_log_count)) {
             fprintf(stderr,
                     "Switch: pci cfg read  bus=%u dev=%u fn=%u reg=0x%02x len=%u val=0xffffffff dev=empty\n",
@@ -184,11 +177,9 @@ uint32_t pci_data_read(PCIBus *s, uint32_t addr, unsigned len)
                     config_addr, len);
         }
         cfg_read_log_count++;
-#endif
         return ~0x0;
     }
 
-#ifdef CONFIG_SWITCH
     ret = pci_host_config_read_common(pci_dev, config_addr,
                                       PCI_CONFIG_SPACE_SIZE, len);
     if (switch_pci_cfg_log_enabled(&cfg_read_log_count)) {
@@ -201,10 +192,6 @@ uint32_t pci_data_read(PCIBus *s, uint32_t addr, unsigned len)
     }
     cfg_read_log_count++;
     return ret;
-#else
-    return pci_host_config_read_common(pci_dev, config_addr,
-                                       PCI_CONFIG_SPACE_SIZE, len);
-#endif
 }
 
 static void pci_host_config_write(void *opaque, hwaddr addr,

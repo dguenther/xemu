@@ -4,6 +4,7 @@ specific_ss.add(when: 'CONFIG_SYSTEM_ONLY', if_true: [files(
   'memory.c',
   'physmem.c',
   'watchpoint.c',
+  '../switch/cpu-debug.c',
 )])
 
 system_ss.add(files(

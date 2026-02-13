@@ -1047,12 +1047,10 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
 
             cpu_loop_exec_tb(cpu, tb, pc, &last_tb, &tb_exit);
 
-#ifdef CONFIG_SWITCH
             {
                 extern void switch_debug_note_tb_executed(int insn_count);
                 switch_debug_note_tb_executed(tb->icount);
             }
-#endif
 
             /* Try to align the host and virtual clocks
                if the guest is in advance */

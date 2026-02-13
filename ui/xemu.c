@@ -69,10 +69,14 @@
 #endif
 
 #include "gl-owner.h"
+#endif
 
 #ifndef SWITCH_DISPLAY_DIAG_LOGS
-#define SWITCH_DISPLAY_DIAG_LOGS 0
+#define SWITCH_DISPLAY_DIAG_LOGS 1
 #endif
+
+#ifndef SWITCH_DISPLAY_REFRESH_INTERVAL
+#define SWITCH_DISPLAY_REFRESH_INTERVAL 30
 #endif
 
 #ifdef _WIN32
@@ -85,6 +89,7 @@ __declspec(dllexport) DWORD NvOptimusEnablement = 1;
 #endif
 
 void tcg_register_init_ctx(void); // tcg.c
+void switch_debug_log_cpu0_state(void);
 
 // #define DEBUG_XEMU_C
 
@@ -1458,9 +1463,37 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
 
 void xemu_display_refresh(void)
 {
+    static int refresh_log_count;
+    static int runstate_log_count;
+    static int refresh_throttle_logged;
+    static uint64_t display_frame_count;
+
     if (!sdl2_console || !g_display_inited) {
         return;
     }
+
+#if SWITCH_DISPLAY_DIAG_LOGS
+    if (refresh_log_count < 5) {
+        fprintf(stderr, "Switch: calling xemu_display_refresh (%d)\n",
+                refresh_log_count);
+        refresh_log_count++;
+    }
+    if (!refresh_throttle_logged) {
+        fprintf(stderr, "Switch: refresh interval=%d frame(s)\n",
+                SWITCH_DISPLAY_REFRESH_INTERVAL);
+        refresh_throttle_logged = 1;
+    }
+    if (runstate_log_count < 10 && (display_frame_count % 60) == 0) {
+        fprintf(stderr, "Switch: runstate running=%d\n",
+                runstate_is_running() ? 1 : 0);
+        runstate_log_count++;
+    }
+    if ((display_frame_count % 60) == 0) {
+        switch_debug_log_cpu0_state();
+    }
+    display_frame_count++;
+#endif
+
     sdl2_gl_refresh(&sdl2_console[0].dcl);
 }
 

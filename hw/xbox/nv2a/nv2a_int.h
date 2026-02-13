@@ -170,10 +170,8 @@ extern const NV2ABlockInfo blocktable[NV_NUM_BLOCKS];
 
 void nv2a_update_irq(NV2AState *d);
 
-#ifdef CONFIG_SWITCH
 void switch_debug_note_nv2a_block_write(bool pfifo, bool pgraph, bool pcrtc,
                                         bool post_kernel, vaddr pc);
-#endif
 
 static inline
 void nv2a_reg_log_read(int block, hwaddr addr, unsigned int size, uint64_t val)
@@ -182,7 +180,6 @@ void nv2a_reg_log_read(int block, hwaddr addr, unsigned int size, uint64_t val)
     if (block < ARRAY_SIZE(blocktable) && blocktable[block].name) {
         block_name = blocktable[block].name;
     }
-#ifdef CONFIG_SWITCH
     {
         static unsigned nv2a_mmio_read_log_count;
         bool display_block =
@@ -211,7 +208,6 @@ void nv2a_reg_log_read(int block, hwaddr addr, unsigned int size, uint64_t val)
         }
         nv2a_mmio_read_log_count++;
     }
-#endif
     trace_nv2a_reg_read(block_name, addr, size, val);
 }
 
@@ -222,7 +218,6 @@ void nv2a_reg_log_write(int block, hwaddr addr, unsigned int size, uint64_t val)
     if (block < ARRAY_SIZE(blocktable) && blocktable[block].name) {
         block_name = blocktable[block].name;
     }
-#ifdef CONFIG_SWITCH
     {
         static unsigned nv2a_mmio_write_log_count;
         bool pfifo_block = (block == NV_PFIFO);
@@ -271,7 +266,6 @@ void nv2a_reg_log_write(int block, hwaddr addr, unsigned int size, uint64_t val)
         }
         nv2a_mmio_write_log_count++;
     }
-#endif
     trace_nv2a_reg_write(block_name, addr, size, val);
 }
 

@@ -2908,21 +2908,6 @@ void qemu_init(int argc, char **argv)
     }
 
     const char *eeprom_path = get_eeprom_path();
-    char *eeprom_machine_arg = NULL;
-    if (!eeprom_path) {
-        autostart = 0;
-#ifdef CONFIG_SWITCH
-        fprintf(stderr, "Switch: autostart disabled (eeprom path unavailable)\n");
-#endif
-    }
-
-#ifdef CONFIG_SWITCH
-    if (eeprom_path) {
-        char *escaped_eeprom_path = strdup_double_commas(eeprom_path);
-        eeprom_machine_arg = g_strdup_printf(",eeprom=%s", escaped_eeprom_path);
-        free(escaped_eeprom_path);
-    }
-#endif
 
     const char *avpack_str = (const char *[]){
         "scart",
@@ -2934,30 +2919,25 @@ void qemu_init(int argc, char **argv)
         "none",
     }[g_config.sys.avpack];
 
-    fake_argv[fake_argc++] = g_strdup_printf("xbox%s%s%s%s,avpack=%s",
+    fake_argv[fake_argc++] = g_strdup_printf("xbox%s%s%s,avpack=%s",
         (bootrom_arg != NULL) ? bootrom_arg : "",
         g_config.general.skip_boot_anim ? ",short-animation=on" : "",
         ",kernel-irqchip=off",
-        (eeprom_machine_arg != NULL) ? eeprom_machine_arg : "",
         avpack_str
         );
 
     if (bootrom_arg != NULL) {
         g_free(bootrom_arg);
     }
-#ifdef CONFIG_SWITCH
-    if (eeprom_machine_arg != NULL) {
-        g_free(eeprom_machine_arg);
-    }
-#else
     if (eeprom_path) {
         fake_argv[fake_argc++] = strdup("-device");
         char *escaped_eeprom_path = strdup_double_commas(eeprom_path);
         fake_argv[fake_argc++] = g_strdup_printf("smbus-storage,file=%s",
                                                  escaped_eeprom_path);
         free(escaped_eeprom_path);
+    } else {
+        autostart = 0;
     }
-#endif
 
     const char *flashrom_path = g_config.sys.files.flashrom_path;
     if (g_config.general.show_welcome) {

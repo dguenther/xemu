@@ -33,14 +33,12 @@ uint64_t pmc_read(void *opaque, hwaddr addr, unsigned int size)
          * NV2A, A03, Rev 0 */
 
         r = 0x02A000A3;
-#ifdef CONFIG_SWITCH
         static bool first_gpu_detect = true;
         if (first_gpu_detect) {
             first_gpu_detect = false;
             fprintf(stderr, "Switch: GPU detected! BIOS read PMC_BOOT_0 = 0x%08lx (NV2A A03)\n",
                     (unsigned long)r);
         }
-#endif
         break;
     case NV_PMC_INTR_0:
         /* Shows which functional units have pending IRQ */

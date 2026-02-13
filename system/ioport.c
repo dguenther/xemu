@@ -32,9 +32,8 @@
 #include "exec/address-spaces.h"
 #include "trace.h"
 
-#ifdef CONFIG_SWITCH
 #ifndef SWITCH_IO_DETAIL_LOGS
-#define SWITCH_IO_DETAIL_LOGS 0
+#define SWITCH_IO_DETAIL_LOGS 1
 #endif
 
 #if SWITCH_IO_DETAIL_LOGS
@@ -53,7 +52,6 @@ static bool switch_io_probe_port(uint32_t addr)
            (addr >= 0x3b0 && addr <= 0x3df) ||   /* VGA legacy ports */
            addr == 0x80;                         /* POST delay port */
 }
-#endif
 #endif
 
 struct MemoryRegionPortioList {
@@ -85,7 +83,6 @@ const MemoryRegionOps unassigned_io_ops = {
 
 void cpu_outb(uint32_t addr, uint8_t val)
 {
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned io_out_log_count;
     if (switch_io_probe_port(addr) &&
@@ -94,7 +91,6 @@ void cpu_outb(uint32_t addr, uint8_t val)
                 addr, val);
         io_out_log_count++;
     }
-#endif
 #endif
     trace_cpu_out(addr, 'b', val);
     address_space_write(&address_space_io, addr, MEMTXATTRS_UNSPECIFIED,
@@ -105,7 +101,6 @@ void cpu_outw(uint32_t addr, uint16_t val)
 {
     uint8_t buf[2];
 
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned io_out_log_count;
     if (switch_io_probe_port(addr) &&
@@ -114,7 +109,6 @@ void cpu_outw(uint32_t addr, uint16_t val)
                 addr, val);
         io_out_log_count++;
     }
-#endif
 #endif
     trace_cpu_out(addr, 'w', val);
     stw_p(buf, val);
@@ -126,7 +120,6 @@ void cpu_outl(uint32_t addr, uint32_t val)
 {
     uint8_t buf[4];
 
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned io_out_log_count;
     if (switch_io_probe_port(addr) &&
@@ -135,7 +128,6 @@ void cpu_outl(uint32_t addr, uint32_t val)
                 addr, val);
         io_out_log_count++;
     }
-#endif
 #endif
     trace_cpu_out(addr, 'l', val);
     stl_p(buf, val);
@@ -149,7 +141,6 @@ uint8_t cpu_inb(uint32_t addr)
 
     address_space_read(&address_space_io, addr, MEMTXATTRS_UNSPECIFIED,
                        &val, 1);
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned io_in_log_count;
     if (switch_io_probe_port(addr) &&
@@ -158,7 +149,6 @@ uint8_t cpu_inb(uint32_t addr)
                 addr, val);
         io_in_log_count++;
     }
-#endif
 #endif
     trace_cpu_in(addr, 'b', val);
     return val;
@@ -171,7 +161,6 @@ uint16_t cpu_inw(uint32_t addr)
 
     address_space_read(&address_space_io, addr, MEMTXATTRS_UNSPECIFIED, buf, 2);
     val = lduw_p(buf);
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned io_in_log_count;
     if (switch_io_probe_port(addr) &&
@@ -180,7 +169,6 @@ uint16_t cpu_inw(uint32_t addr)
                 addr, val);
         io_in_log_count++;
     }
-#endif
 #endif
     trace_cpu_in(addr, 'w', val);
     return val;
@@ -193,7 +181,6 @@ uint32_t cpu_inl(uint32_t addr)
 
     address_space_read(&address_space_io, addr, MEMTXATTRS_UNSPECIFIED, buf, 4);
     val = ldl_p(buf);
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned io_in_log_count;
     if (switch_io_probe_port(addr) &&
@@ -202,7 +189,6 @@ uint32_t cpu_inl(uint32_t addr)
                 addr, val);
         io_in_log_count++;
     }
-#endif
 #endif
     trace_cpu_in(addr, 'l', val);
     return val;

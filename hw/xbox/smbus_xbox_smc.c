@@ -126,7 +126,6 @@ static int smc_write_data(SMBusDevice *dev, uint8_t *buf, uint8_t len)
 
     DPRINTF("smc_write_byte: addr=0x%02x cmd=0x%02x val=0x%02x\n",
            dev->i2c.address, cmd, buf[0]);
-#ifdef CONFIG_SWITCH
     static unsigned smc_write_log_count;
     if (smc_write_log_count < 300 || (smc_write_log_count % 2000) == 0) {
         fprintf(stderr,
@@ -134,7 +133,6 @@ static int smc_write_data(SMBusDevice *dev, uint8_t *buf, uint8_t len)
                 cmd, len, len ? buf[0] : 0);
     }
     smc_write_log_count++;
-#endif
 
     switch (cmd) {
     case SMC_REG_VER:
@@ -228,13 +226,11 @@ static uint8_t smc_receive_byte(SMBusDevice *dev)
         break;
     }
 
-#ifdef CONFIG_SWITCH
     static unsigned smc_read_log_count;
     if (smc_read_log_count < 300 || (smc_read_log_count % 2000) == 0) {
         fprintf(stderr, "Switch: smc read  cmd=0x%02x ret=0x%02x\n", cmd, ret);
     }
     smc_read_log_count++;
-#endif
     return ret;
 }
 

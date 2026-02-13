@@ -13,7 +13,7 @@
 #endif
 
 #ifndef SWITCH_CPU_DETAIL_LOGS
-#define SWITCH_CPU_DETAIL_LOGS 0
+#define SWITCH_CPU_DETAIL_LOGS 1
 #endif
 
 extern void switch_log(const char *format, ...);
@@ -25,10 +25,24 @@ extern void switch_log(const char *format, ...);
 static uint64_t g_switch_tb_exec_count;
 static uint64_t g_switch_tb_insn_count;
 
+#ifndef CONFIG_SWITCH
+#ifndef SWITCH_CPU_DESKTOP_SAMPLE_TB_MASK
+#define SWITCH_CPU_DESKTOP_SAMPLE_TB_MASK 0x7fffu
+#endif
+#endif
+
+void switch_debug_log_cpu0_state(void);
+
 void switch_debug_note_tb_executed(int insn_count)
 {
     qatomic_inc(&g_switch_tb_exec_count);
     qatomic_add(&g_switch_tb_insn_count, insn_count);
+
+#ifndef CONFIG_SWITCH
+    if ((qatomic_read(&g_switch_tb_exec_count) & SWITCH_CPU_DESKTOP_SAMPLE_TB_MASK) == 0) {
+        switch_debug_log_cpu0_state();
+    }
+#endif
 }
 
 typedef struct SwitchNV2ABlockProbeCounters {

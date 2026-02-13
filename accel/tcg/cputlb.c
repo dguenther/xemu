@@ -48,7 +48,6 @@
 #include "tcg/tcg-ldst.h"
 #include "tcg/oversized-guest.h"
 
-#ifdef CONFIG_SWITCH
 void switch_debug_note_mmio_access(vaddr eip, vaddr addr, hwaddr mr_offset,
                                    bool is_write, unsigned size,
                                    uint64_t value, const char *mr_name);
@@ -82,7 +81,6 @@ static inline void switch_debug_note_mem_access_from_cpu(
     pc = cpu->cc->get_pc(cpu);
     switch_debug_note_mem_access(pc, addr, is_write, size, value);
 }
-#endif
 
 /* DEBUG defines, enable DEBUG_TLB_LOG to log to the CPU_LOG_MMU target */
 /* #define DEBUG_TLB */
@@ -2002,10 +2000,8 @@ static uint64_t int_ld_mmio_beN(CPUState *cpu, CPUTLBEntryFull *full,
         if (unlikely(r != MEMTX_OK)) {
             io_failed(cpu, full, addr, this_size, type, mmu_idx, r, ra);
         }
-#ifdef CONFIG_SWITCH
         switch_debug_note_mmio_access_from_cpu(cpu, addr, mr_offset, false,
                                                this_size, val, mr);
-#endif
         if (this_size == 8) {
             return val;
         }
@@ -2247,9 +2243,7 @@ static uint64_t do_ld_beN(CPUState *cpu, MMULookupPageData *p,
         g_assert_not_reached();
     }
 
-#ifdef CONFIG_SWITCH
     switch_debug_note_mem_access_from_cpu(cpu, p->addr, false, p->size, ret);
-#endif
     return ret;
 }
 
@@ -2315,9 +2309,7 @@ static uint8_t do_ld_1(CPUState *cpu, MMULookupPageData *p, int mmu_idx,
     } else {
         ret = *(uint8_t *)p->haddr;
     }
-#ifdef CONFIG_SWITCH
     switch_debug_note_mem_access_from_cpu(cpu, p->addr, false, 1, ret);
-#endif
     return ret;
 }
 
@@ -2338,9 +2330,7 @@ static uint16_t do_ld_2(CPUState *cpu, MMULookupPageData *p, int mmu_idx,
             ret = bswap16(ret);
         }
     }
-#ifdef CONFIG_SWITCH
     switch_debug_note_mem_access_from_cpu(cpu, p->addr, false, 2, ret);
-#endif
     return ret;
 }
 
@@ -2361,9 +2351,7 @@ static uint32_t do_ld_4(CPUState *cpu, MMULookupPageData *p, int mmu_idx,
             ret = bswap32(ret);
         }
     }
-#ifdef CONFIG_SWITCH
     switch_debug_note_mem_access_from_cpu(cpu, p->addr, false, 4, ret);
-#endif
     return ret;
 }
 
@@ -2384,9 +2372,7 @@ static uint64_t do_ld_8(CPUState *cpu, MMULookupPageData *p, int mmu_idx,
             ret = bswap64(ret);
         }
     }
-#ifdef CONFIG_SWITCH
     switch_debug_note_mem_access_from_cpu(cpu, p->addr, false, 8, ret);
-#endif
     return ret;
 }
 
@@ -2571,10 +2557,8 @@ static uint64_t int_st_mmio_leN(CPUState *cpu, CPUTLBEntryFull *full,
             io_failed(cpu, full, addr, this_size, MMU_DATA_STORE,
                       mmu_idx, r, ra);
         }
-#ifdef CONFIG_SWITCH
         switch_debug_note_mmio_access_from_cpu(cpu, addr, mr_offset, true,
                                                this_size, val_le, mr);
-#endif
         if (this_size == 8) {
             return 0;
         }
@@ -2689,10 +2673,8 @@ static uint64_t do_st_leN(CPUState *cpu, MMULookupPageData *p,
         g_assert_not_reached();
     }
 
-#ifdef CONFIG_SWITCH
     switch_debug_note_mem_access_from_cpu(cpu, p->addr, true, p->size,
                                           val_orig);
-#endif
     return ret;
 }
 
@@ -2758,11 +2740,9 @@ static void do_st_1(CPUState *cpu, MMULookupPageData *p, uint8_t val,
     } else {
         *(uint8_t *)p->haddr = val;
     }
-#ifdef CONFIG_SWITCH
     if (likely(!(p->flags & TLB_MMIO)) && likely(!(p->flags & TLB_DISCARD_WRITE))) {
         switch_debug_note_mem_access_from_cpu(cpu, p->addr, true, 1, val);
     }
-#endif
 }
 
 static void do_st_2(CPUState *cpu, MMULookupPageData *p, uint16_t val,
@@ -2784,11 +2764,9 @@ static void do_st_2(CPUState *cpu, MMULookupPageData *p, uint16_t val,
         }
         store_atom_2(cpu, ra, p->haddr, memop, val);
     }
-#ifdef CONFIG_SWITCH
     if (likely(!(p->flags & TLB_MMIO)) && likely(!(p->flags & TLB_DISCARD_WRITE))) {
         switch_debug_note_mem_access_from_cpu(cpu, p->addr, true, 2, val_guest);
     }
-#endif
 }
 
 static void do_st_4(CPUState *cpu, MMULookupPageData *p, uint32_t val,
@@ -2810,11 +2788,9 @@ static void do_st_4(CPUState *cpu, MMULookupPageData *p, uint32_t val,
         }
         store_atom_4(cpu, ra, p->haddr, memop, val);
     }
-#ifdef CONFIG_SWITCH
     if (likely(!(p->flags & TLB_MMIO)) && likely(!(p->flags & TLB_DISCARD_WRITE))) {
         switch_debug_note_mem_access_from_cpu(cpu, p->addr, true, 4, val_guest);
     }
-#endif
 }
 
 static void do_st_8(CPUState *cpu, MMULookupPageData *p, uint64_t val,
@@ -2836,11 +2812,9 @@ static void do_st_8(CPUState *cpu, MMULookupPageData *p, uint64_t val,
         }
         store_atom_8(cpu, ra, p->haddr, memop, val);
     }
-#ifdef CONFIG_SWITCH
     if (likely(!(p->flags & TLB_MMIO)) && likely(!(p->flags & TLB_DISCARD_WRITE))) {
         switch_debug_note_mem_access_from_cpu(cpu, p->addr, true, 8, val_guest);
     }
-#endif
 }
 
 static void do_st1_mmu(CPUState *cpu, vaddr addr, uint8_t val,

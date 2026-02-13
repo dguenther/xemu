@@ -27,13 +27,12 @@
 #include "tcg/helper-tcg.h"
 #include "hw/i386/apic.h"
 
-#ifdef CONFIG_SWITCH
 void switch_debug_note_io_port_access(uint32_t eip, uint32_t port,
                                       bool is_write, unsigned size,
                                       uint32_t value);
 
 #ifndef SWITCH_IO_DETAIL_LOGS
-#define SWITCH_IO_DETAIL_LOGS 0
+#define SWITCH_IO_DETAIL_LOGS 1
 #endif
 
 #if SWITCH_IO_DETAIL_LOGS
@@ -58,11 +57,9 @@ static bool switch_force_io_log(uint32_t eip)
     return eip >= 0x80054000u && eip < 0x80056000u;
 }
 #endif
-#endif
 
 void helper_outb(CPUX86State *env, uint32_t port, uint32_t data)
 {
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static bool have_last_post;
     static uint8_t last_post;
@@ -94,10 +91,7 @@ void helper_outb(CPUX86State *env, uint32_t port, uint32_t data)
         out_log_count++;
     }
 #endif
-#endif
-#ifdef CONFIG_SWITCH
     switch_debug_note_io_port_access(env->eip, port, true, 1, data & 0xff);
-#endif
     address_space_stb(&address_space_io, port, data,
                       cpu_get_mem_attrs(env), NULL);
 }
@@ -106,7 +100,6 @@ target_ulong helper_inb(CPUX86State *env, uint32_t port)
 {
     target_ulong ret = address_space_ldub(&address_space_io, port,
                                           cpu_get_mem_attrs(env), NULL);
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned in_log_count;
     bool force_log = switch_force_io_log(env->eip);
@@ -118,17 +111,13 @@ target_ulong helper_inb(CPUX86State *env, uint32_t port)
         in_log_count++;
     }
 #endif
-#endif
-#ifdef CONFIG_SWITCH
     switch_debug_note_io_port_access(env->eip, port, false, 1,
                                      (uint32_t)(ret & 0xff));
-#endif
     return ret;
 }
 
 void helper_outw(CPUX86State *env, uint32_t port, uint32_t data)
 {
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned out_log_count;
     bool force_log = switch_force_io_log(env->eip);
@@ -140,10 +129,7 @@ void helper_outw(CPUX86State *env, uint32_t port, uint32_t data)
         out_log_count++;
     }
 #endif
-#endif
-#ifdef CONFIG_SWITCH
     switch_debug_note_io_port_access(env->eip, port, true, 2, data & 0xffff);
-#endif
     address_space_stw(&address_space_io, port, data,
                       cpu_get_mem_attrs(env), NULL);
 }
@@ -152,7 +138,6 @@ target_ulong helper_inw(CPUX86State *env, uint32_t port)
 {
     target_ulong ret = address_space_lduw(&address_space_io, port,
                                           cpu_get_mem_attrs(env), NULL);
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned in_log_count;
     bool force_log = switch_force_io_log(env->eip);
@@ -164,17 +149,13 @@ target_ulong helper_inw(CPUX86State *env, uint32_t port)
         in_log_count++;
     }
 #endif
-#endif
-#ifdef CONFIG_SWITCH
     switch_debug_note_io_port_access(env->eip, port, false, 2,
                                      (uint32_t)(ret & 0xffff));
-#endif
     return ret;
 }
 
 void helper_outl(CPUX86State *env, uint32_t port, uint32_t data)
 {
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned out_log_count;
     bool force_log = switch_force_io_log(env->eip);
@@ -189,10 +170,7 @@ void helper_outl(CPUX86State *env, uint32_t port, uint32_t data)
         out_log_count++;
     }
 #endif
-#endif
-#ifdef CONFIG_SWITCH
     switch_debug_note_io_port_access(env->eip, port, true, 4, data);
-#endif
     address_space_stl(&address_space_io, port, data,
                       cpu_get_mem_attrs(env), NULL);
 }
@@ -201,7 +179,6 @@ target_ulong helper_inl(CPUX86State *env, uint32_t port)
 {
     target_ulong ret = address_space_ldl(&address_space_io, port,
                                          cpu_get_mem_attrs(env), NULL);
-#ifdef CONFIG_SWITCH
 #if SWITCH_IO_DETAIL_LOGS
     static unsigned in_log_count;
     bool force_log = switch_force_io_log(env->eip);
@@ -213,11 +190,8 @@ target_ulong helper_inl(CPUX86State *env, uint32_t port)
         in_log_count++;
     }
 #endif
-#endif
-#ifdef CONFIG_SWITCH
     switch_debug_note_io_port_access(env->eip, port, false, 4,
                                      (uint32_t)(ret & 0xffffffffu));
-#endif
     return ret;
 }
 
@@ -672,20 +646,16 @@ void helper_flush_page(CPUX86State *env, target_ulong addr)
 G_NORETURN void helper_hlt(CPUX86State *env)
 {
     CPUState *cs = env_cpu(env);
-#ifdef CONFIG_SWITCH
     static unsigned hlt_log_count;
-#endif
 
     do_end_instruction(env);
     cs->halted = 1;
-#ifdef CONFIG_SWITCH
     if (hlt_log_count < 20 || (hlt_log_count % 20000) == 0) {
         fprintf(stderr,
                 "Switch: helper_hlt cpu=%d eip=0x%08x int_req=0x%x\n",
                 cs->cpu_index, env->eip, cs->interrupt_request);
     }
     hlt_log_count++;
-#endif
     cs->exception_index = EXCP_HLT;
     cpu_loop_exit(cs);
 }
