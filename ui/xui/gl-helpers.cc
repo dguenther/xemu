@@ -950,11 +950,6 @@ float GetDisplayAspectRatio(int width, int height)
 
 void RenderFramebuffer(GLint tex, int width, int height, bool flip)
 {
-    // Skip rendering if no valid texture or dimensions
-    if (tex == 0 || width <= 0 || height <= 0) {
-        return;
-    }
-
     int tw, th;
     float scale[2];
 
@@ -964,7 +959,9 @@ void RenderFramebuffer(GLint tex, int width, int height, bool flip)
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &th);
 
     // Skip if texture has no valid size
+    // TODO: Happens when rendering before booting into BIOS
     if (tw <= 0 || th <= 0) {
+        fprintf(stderr, "Invalid framebuffer texture size: %dx%d\n", tw, th);
         return;
     }
 

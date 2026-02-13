@@ -519,12 +519,10 @@ void xemu_hud_render(void)
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-#ifndef CONFIG_SWITCH
     if (g_vsync != g_config.display.window.vsync) {
         g_vsync = g_config.display.window.vsync;
         SDL_GL_SetSwapInterval(g_vsync ? 1 : 0);
     }
-#endif
 
     if (g_screenshot_pending) {
         SaveScreenshot(g_tex, g_flip_req);
