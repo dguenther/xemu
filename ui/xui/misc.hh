@@ -26,9 +26,6 @@
 
 extern "C" {
 #include <noc_file_dialog.h>
-#ifdef CONFIG_SWITCH
-#include "qemu-types-stub.h"
-#endif
 }
 
 static inline const char *PausedFileOpen(int flags, const char *filters,

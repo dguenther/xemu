@@ -81,3 +81,8 @@ void xemu_net_disable(void)
 {
     switch_log("STUB: xemu_net_disable called\n");
 }
+
+void xemu_net_is_enabled(void)
+{
+    switch_log("STUB: xemu_net_is_enabled called\n");
+}

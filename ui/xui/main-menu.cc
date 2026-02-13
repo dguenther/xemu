@@ -40,19 +40,16 @@
 #include "../xemu-monitor.h"
 #endif
 #include "../xemu-version.h"
-#ifndef CONFIG_SWITCH
 #include "../xemu-net.h"
-#endif
 #include "../xemu-os-utils.h"
 #include "../xemu-xbe.h"
 
 #ifdef CONFIG_SWITCH
+#define PCAP_ERRBUF_SIZE 256
 extern "C" void switch_request_boot_bios(void);
 #endif
 
-#ifndef CONFIG_SWITCH
 #include "../thirdparty/fatx/fatx.h"
-#endif
 
 #define DEFAULT_XMU_SIZE 8388608
 

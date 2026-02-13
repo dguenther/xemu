@@ -32,10 +32,6 @@
 #include <vector>
 #include <ctime>
 
-#ifdef CONFIG_SWITCH
-#include "qemu-types-stub.h"
-#endif
-
 #include "ui/shader/xemu-logo-frag.h"
 
 Fbo *controller_fbo, *xmu_fbo, *logo_fbo;

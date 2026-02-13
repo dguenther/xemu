@@ -41,10 +41,6 @@
 extern "C" {
 #include <noc_file_dialog.h>
 
-#ifdef CONFIG_SWITCH
-// On Switch, use stub headers instead of full QEMU headers
-#include "switch/qemu-types-stub.h"
-#else
 // Include QEMU headers (not available on Switch)
 #include "qemu/osdep.h"
 #include "qapi/error.h"
@@ -60,7 +56,6 @@ extern "C" {
 #undef atomic_fetch_xor
 #undef atomic_fetch_or
 #undef atomic_fetch_sub
-#endif // !CONFIG_SWITCH
 }
 
 extern bool g_screenshot_pending;

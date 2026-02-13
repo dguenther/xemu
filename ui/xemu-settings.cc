@@ -17,14 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CONFIG_SWITCH
+// #ifndef CONFIG_SWITCH
 #include "qemu/osdep.h"
-#else
-#include "config-switch.h"
-#include "platform_stubs.h"
-#include "glib-compat.h"
-#include "qemu-types-stub.h"
-#endif
+// #else
+// #include "config-switch.h"
+// #include "platform_stubs.h"
+// #include "glib-compat.h"
+// #endif
 #include <stdlib.h>
 #include <SDL_filesystem.h>
 #include <string.h>

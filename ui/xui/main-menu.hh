@@ -30,9 +30,6 @@
 
 extern "C" {
 #include "net/pcap.h"
-#ifdef CONFIG_SWITCH
-#include "qemu-types-stub.h"
-#endif
 #undef snprintf  // FIXME
 }
 

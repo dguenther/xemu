@@ -84,7 +84,6 @@ switch/
 ├── glib.h               # Switch wrapper for GLib headers
 ├── oslib-switch.c       # OS abstraction layer for Switch
 ├── main-switch.c        # Switch-specific main entry point
-├── qemu-types-stub.h    # C/C++ stubs used by Switch UI build
 ├── qemu-stubs/          # Modular QEMU stub implementations (37 files)
 │   ├── common.h         # Shared header for stub files
 │   ├── trace.c          # Trace system stubs
